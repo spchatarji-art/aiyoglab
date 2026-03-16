@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Yog Lab — World Super App</title>
+<!-- Google Identity Services for Sign-In -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{width:100%;height:100%;overflow:hidden}
+body{font-family:'Rajdhani',sans-serif;background:#040d1a;color:#c8e8ff}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#040d1a}::-webkit-scrollbar-thumb{background:#00d4ff44;border-radius:2px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes glow{0%,100%{box-shadow:0 0 8px rgba(0,212,255,0.3)}50%{box-shadow:0 0 28px rgba(0,212,255,0.8)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes grad{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.fade-up{animation:fadeUp 0.3s ease both}
+.spin{animation:spin 0.8s linear infinite}
+.glow-anim{animation:glow 2.5s ease infinite}
+.float-anim{animation:float 3s ease infinite}
+input,textarea,select{font-family:'Rajdhani',sans-serif}
+input::placeholder,textarea::placeholder{color:#1e3a56}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+
+/* ─── CONFIG ─────────────────────────────────────────── */
+const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+// Replace above with your Google Client ID from console.cloud.google.com
+// OR leave as-is — app will use email/name login as fallback
+
+const SECRET_COUPON = "aiyoglab@08"; // Hidden — never shown in UI
+
+const HEX_BG = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='52'%3E%3Cpath d='M30 1L59 17L59 35L30 51L1 35L1 17Z' fill='none' stroke='rgba(0,212,255,0.04)' stroke-width='1'/%3E%3C/svg%3E\")";
+
+/* ─── STORAGE ─────────────────────────────────────────── */
+const LS = {
+  get: (k, def=null) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):def; } catch { return def; }},
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del: (k) => { try { localStorage.removeItem(k); } catch {} }
+};
+
+/* ─── TOOLS DATA (100+) ──────────────────────────────── */
+const TOOLS=[
+  {id:"blog",n:"Blog Writer",c:"Content",i:"✍️",col:"#00d4ff",d:"SEO blog posts"},
+  {id:"script",n:"Script Writer",c:"Content",i:"🎬",col:"#00d4ff",d:"YouTube scripts"},
+  {id:"story",n:"Story Generator",c:"Content",i:"📖",col:"#00d4ff",d:"Creative stories"},
+  {id:"rewriter",n:"Article Rewriter",c:"Content",i:"🔄",col:"#00d4ff",d:"Rewrite & improve"},
+  {id:"email",n:"Email Writer",c:"Content",i:"📧",col:"#00d4ff",d:"Professional emails"},
+  {id:"adcopy",n:"Ad Copy",c:"Content",i:"📢",col:"#00d4ff",d:"Convert ads"},
+  {id:"product_desc",n:"Product Desc",c:"Content",i:"🏷️",col:"#00d4ff",d:"Product copy"},
+  {id:"linkedin",n:"LinkedIn Post",c:"Content",i:"💼",col:"#00d4ff",d:"Viral posts"},
+  {id:"twitter",n:"Twitter Thread",c:"Content",i:"🐦",col:"#00d4ff",d:"Tweet threads"},
+  {id:"caption",n:"Caption Gen",c:"Content",i:"💬",col:"#00d4ff",d:"Social captions"},
+  {id:"newsletter",n:"Newsletter",c:"Content",i:"📰",col:"#00d4ff",d:"Email newsletters"},
+  {id:"poem",n:"Poem Writer",c:"Content",i:"🌸",col:"#00d4ff",d:"Beautiful poetry"},
+  {id:"img_gen",n:"Image Prompts",c:"Image",i:"🎨",col:"#a855f7",d:"FLUX/MJ/DALL-E 3"},
+  {id:"thumbnail",n:"Thumbnail AI",c:"Image",i:"🖼️",col:"#a855f7",d:"Click-worthy thumbs"},
+  {id:"logo_ai",n:"Logo Designer",c:"Image",i:"⬡",col:"#a855f7",d:"Brand logos"},
+  {id:"poster",n:"Poster Gen",c:"Image",i:"📋",col:"#a855f7",d:"Promo posters"},
+  {id:"banner",n:"Social Banner",c:"Image",i:"🏳️",col:"#a855f7",d:"Social banners"},
+  {id:"pfp",n:"Profile Pic AI",c:"Image",i:"👤",col:"#a855f7",d:"AI profile pics"},
+  {id:"cartoon",n:"Cartoon Gen",c:"Image",i:"🎭",col:"#a855f7",d:"Cartoon prompts"},
+  {id:"illustration",n:"Illustration AI",c:"Image",i:"🖌️",col:"#a855f7",d:"Custom art"},
+  {id:"video_gen",n:"Video Script",c:"Video",i:"🎥",col:"#00ff88",d:"Cinematic scripts"},
+  {id:"shorts",n:"Shorts Gen",c:"Video",i:"📱",col:"#00ff88",d:"YouTube Shorts"},
+  {id:"reels",n:"Reels Creator",c:"Video",i:"🎞️",col:"#00ff88",d:"Instagram Reels"},
+  {id:"subtitle",n:"Subtitle Gen",c:"Video",i:"🗒️",col:"#00ff88",d:"Auto subtitles"},
+  {id:"voiceover",n:"Voiceover",c:"Video",i:"🎙️",col:"#00ff88",d:"Pro voiceover"},
+  {id:"video_summ",n:"Video Summarizer",c:"Video",i:"⚡",col:"#00ff88",d:"Summarize videos"},
+  {id:"music_gen",n:"Music Prompts",c:"Audio",i:"🎵",col:"#f59e0b",d:"Suno V5 prompts"},
+  {id:"podcast",n:"Podcast Script",c:"Audio",i:"🎧",col:"#f59e0b",d:"Full episodes"},
+  {id:"tts_gen",n:"TTS Script",c:"Audio",i:"🔊",col:"#f59e0b",d:"TTS scripts"},
+  {id:"sound_fx",n:"Sound Effects",c:"Audio",i:"🔉",col:"#f59e0b",d:"Sound design"},
+  {id:"code",n:"Code Generator",c:"Dev",i:"💻",col:"#06b6d4",d:"Any language"},
+  {id:"debug",n:"Bug Fixer",c:"Dev",i:"🐛",col:"#06b6d4",d:"Find & fix bugs"},
+  {id:"explain_code",n:"Code Explainer",c:"Dev",i:"📖",col:"#06b6d4",d:"Explain code"},
+  {id:"website_builder",n:"Website Builder",c:"Dev",i:"🌐",col:"#06b6d4",d:"Full websites"},
+  {id:"app_builder",n:"App Builder",c:"Dev",i:"📱",col:"#06b6d4",d:"React/Flutter apps"},
+  {id:"game_builder",n:"Game Builder",c:"Dev",i:"🎮",col:"#06b6d4",d:"HTML5 games"},
+  {id:"api_gen",n:"API Generator",c:"Dev",i:"🔌",col:"#06b6d4",d:"REST APIs"},
+  {id:"database",n:"DB Designer",c:"Dev",i:"🗄️",col:"#06b6d4",d:"Schema & queries"},
+  {id:"ui_design",n:"UI Designer",c:"Dev",i:"🎨",col:"#06b6d4",d:"Beautiful UI"},
+  {id:"seo",n:"SEO Analyzer",c:"Marketing",i:"🔍",col:"#ec4899",d:"Boost rankings"},
+  {id:"keywords",n:"Keyword Research",c:"Marketing",i:"🗝️",col:"#ec4899",d:"Winning keywords"},
+  {id:"landing_page",n:"Landing Page",c:"Marketing",i:"🚀",col:"#ec4899",d:"High converting"},
+  {id:"ad_campaign",n:"Ad Campaign",c:"Marketing",i:"📣",col:"#ec4899",d:"Google/Meta ads"},
+  {id:"competitor",n:"Competitor Analysis",c:"Marketing",i:"⚔️",col:"#ec4899",d:"Analyze rivals"},
+  {id:"hashtag",n:"Hashtag Gen",c:"Marketing",i:"#️⃣",col:"#ec4899",d:"Viral hashtags"},
+  {id:"email_campaign",n:"Email Campaign",c:"Marketing",i:"📨",col:"#ec4899",d:"Campaign copy"},
+  {id:"resume",n:"Resume Builder",c:"Business",i:"📄",col:"#ff6b35",d:"Pro resumes"},
+  {id:"business_plan",n:"Business Plan",c:"Business",i:"📈",col:"#ff6b35",d:"Full biz plans"},
+  {id:"legal",n:"Contract Gen",c:"Business",i:"⚖️",col:"#ff6b35",d:"Legal docs"},
+  {id:"invoice",n:"Invoice Gen",c:"Business",i:"🧾",col:"#ff6b35",d:"Pro invoices"},
+  {id:"finance",n:"Finance Advisor",c:"Business",i:"💰",col:"#ff6b35",d:"Finance insights"},
+  {id:"math",n:"Math Solver",c:"Education",i:"🔢",col:"#84cc16",d:"Step-by-step math"},
+  {id:"essay",n:"Essay Writer",c:"Education",i:"📝",col:"#84cc16",d:"Academic essays"},
+  {id:"quiz",n:"Quiz Generator",c:"Education",i:"❓",col:"#84cc16",d:"Quizzes & tests"},
+  {id:"homework",n:"Homework Helper",c:"Education",i:"📚",col:"#84cc16",d:"Solve homework"},
+  {id:"iit_jee",n:"IIT JEE Helper",c:"Education",i:"🏛️",col:"#84cc16",d:"JEE exam prep"},
+  {id:"course_creator",n:"Course Creator",c:"Education",i:"🎓",col:"#84cc16",d:"Full courses"},
+  {id:"lang_tutor",n:"Language Tutor",c:"Education",i:"🗺️",col:"#84cc16",d:"Learn languages"},
+  {id:"science",n:"Science Explainer",c:"Education",i:"🔬",col:"#84cc16",d:"Science concepts"},
+  {id:"workflow",n:"Workflow Builder",c:"Automation",i:"⚙️",col:"#8b5cf6",d:"AI workflows"},
+  {id:"social_auto",n:"Social Auto",c:"Automation",i:"📲",col:"#8b5cf6",d:"Auto social posts"},
+  {id:"email_auto",n:"Email Auto",c:"Automation",i:"📨",col:"#8b5cf6",d:"Email sequences"},
+  {id:"lead_gen",n:"Lead Generator",c:"Automation",i:"🎯",col:"#8b5cf6",d:"Qualify leads"},
+  {id:"report_gen",n:"Report Generator",c:"Automation",i:"📊",col:"#8b5cf6",d:"Auto reports"},
+  {id:"yt_ideas",n:"YouTube Ideas",c:"Creator",i:"▶️",col:"#ef4444",d:"Viral YT ideas"},
+  {id:"tiktok",n:"TikTok Script",c:"Creator",i:"🎵",col:"#ef4444",d:"TikTok videos"},
+  {id:"meme_gen",n:"Meme Generator",c:"Creator",i:"😂",col:"#ef4444",d:"Viral memes"},
+  {id:"trend_analyzer",n:"Trend Analyzer",c:"Creator",i:"📈",col:"#ef4444",d:"Trending topics"},
+  {id:"hindi_ai",n:"Hindi AI",c:"Bharat",i:"🇮🇳",col:"#f97316",d:"AI in Hindi"},
+  {id:"translate",n:"Translate AI",c:"Bharat",i:"🌐",col:"#f97316",d:"22 Indian langs"},
+  {id:"cricket",n:"Cricket AI",c:"Bharat",i:"🏏",col:"#f97316",d:"Cricket analysis"},
+  {id:"bollywood",n:"Bollywood AI",c:"Bharat",i:"🎬",col:"#f97316",d:"Film & scripts"},
+  {id:"vyapar",n:"Vyapar AI",c:"Bharat",i:"🏪",col:"#f97316",d:"Business in India"},
+  {id:"sarkari",n:"Sarkari AI",c:"Bharat",i:"🏛️",col:"#f97316",d:"Govt schemes"},
+  {id:"astro",n:"Astrology AI",c:"Lifestyle",i:"⭐",col:"#c084fc",d:"AI readings"},
+  {id:"recipe",n:"Recipe Creator",c:"Lifestyle",i:"🍳",col:"#c084fc",d:"Custom recipes"},
+  {id:"travel",n:"Travel Planner",c:"Lifestyle",i:"✈️",col:"#c084fc",d:"Trip plans"},
+  {id:"fitness",n:"Fitness Coach",c:"Lifestyle",i:"💪",col:"#c084fc",d:"Workout plans"},
+  {id:"health",n:"Health Advisor",c:"Lifestyle",i:"🏥",col:"#c084fc",d:"Wellness tips"},
+  {id:"summarize",n:"Summarizer",c:"Lifestyle",i:"📌",col:"#c084fc",d:"Summarize text"},
+  {id:"factcheck",n:"Fact Checker",c:"Lifestyle",i:"✅",col:"#c084fc",d:"Verify facts"},
+];
+
+const BUILDERS=[
+  {id:"website",n:"Website Builder",i:"🌐",col:"#00d4ff",d:"Full responsive websites from a prompt",ex:"Build a modern portfolio website for a photographer with dark theme, gallery and contact form"},
+  {id:"mobile_app",n:"Mobile App Builder",i:"📱",col:"#a855f7",d:"React Native & Flutter app structure",ex:"Create a fitness tracking app with workout logs, progress charts and social sharing"},
+  {id:"game",n:"Game Builder",i:"🎮",col:"#00ff88",d:"Complete playable HTML5 games",ex:"Build an addictive space shooter game with power-ups, multiple levels and high score system"},
+  {id:"landing",n:"Landing Page",i:"🚀",col:"#f59e0b",d:"High-converting marketing pages",ex:"Make a SaaS landing page for an AI writing tool with pricing, features and testimonials"},
+  {id:"saas",n:"SaaS App Builder",i:"💻",col:"#ec4899",d:"Complete SaaS application boilerplate",ex:"Build a subscription AI tool with auth, dashboard, usage tracking and Razorpay payments"},
+  {id:"platform",n:"Platform Builder",i:"🏗️",col:"#ff6b35",d:"Full marketplace/platform architecture",ex:"Build a marketplace platform for handmade products with seller dashboard and UPI payments"},
+  {id:"ecommerce",n:"E-Commerce Builder",i:"🛒",col:"#84cc16",d:"Online store with cart and checkout",ex:"Build an Indian e-commerce store with COD, UPI, GST invoicing and delivery tracking"},
+  {id:"automation_b",n:"Automation Builder",i:"⚙️",col:"#8b5cf6",d:"Custom AI automation workflows",ex:"Automate: blog writing → image generation → social media posting → email newsletter"},
+];
+
+const AGENTS=[
+  {id:"emergent",n:"Emergent AI Agent",i:"🌌",r:9999,c:"Meta",s:"ACTIVE",d:"Multi-domain meta-agent — combines all AI for emergent, novel, unexpected solutions"},
+  {id:"web_a",n:"Website Builder Agent",i:"🌐",r:1247,c:"Dev",s:"READY",d:"Full responsive websites from prompts"},
+  {id:"app_a",n:"App Builder Agent",i:"📱",r:856,c:"Dev",s:"READY",d:"React Native & Flutter apps"},
+  {id:"game_a",n:"Game Builder Agent",i:"🎮",r:432,c:"Dev",s:"READY",d:"Complete HTML5 games"},
+  {id:"code_a",n:"Code Generator Agent",i:"💻",r:3102,c:"Dev",s:"ACTIVE",d:"Production-ready code any language"},
+  {id:"bug_a",n:"Bug Fixer Agent",i:"🐛",r:1678,c:"Dev",s:"READY",d:"Find, explain, and fix bugs"},
+  {id:"blog_a",n:"Blog Writer Agent",i:"✍️",r:3891,c:"Content",s:"ACTIVE",d:"SEO blog posts at scale"},
+  {id:"yt_a",n:"YouTube Script Agent",i:"▶️",r:2156,c:"Content",s:"ACTIVE",d:"Viral YouTube scripts"},
+  {id:"social_a",n:"Social Media Agent",i:"📲",r:4523,c:"Marketing",s:"ACTIVE",d:"All platform content"},
+  {id:"seo_a",n:"SEO Optimizer Agent",i:"🔍",r:1456,c:"Marketing",s:"READY",d:"Full SEO strategy"},
+  {id:"email_a",n:"Email Marketing Agent",i:"📧",r:2341,c:"Marketing",s:"READY",d:"Email campaigns"},
+  {id:"lead_a",n:"Lead Generator Agent",i:"🎯",r:1567,c:"Marketing",s:"READY",d:"Find & qualify leads"},
+  {id:"sales_a",n:"Sales Copy Agent",i:"💰",r:1234,c:"Marketing",s:"READY",d:"High-converting sales copy"},
+  {id:"ad_a",n:"Ad Campaign Agent",i:"📣",r:987,c:"Marketing",s:"READY",d:"Google & Meta campaigns"},
+  {id:"thumb_a",n:"Thumbnail Gen Agent",i:"🖼️",r:1789,c:"Media",s:"READY",d:"YouTube thumbnail prompts"},
+  {id:"logo_a",n:"Logo Designer Agent",i:"⬡",r:923,c:"Media",s:"READY",d:"Brand identity & logos"},
+  {id:"video_a",n:"Video Script Agent",i:"🎥",r:2678,c:"Media",s:"ACTIVE",d:"Cinematic video scripts"},
+  {id:"auto_a",n:"Automation Agent",i:"⚙️",r:1023,c:"Automation",s:"READY",d:"AI workflow design"},
+  {id:"report_a",n:"Report Generator Agent",i:"📊",r:1234,c:"Automation",s:"READY",d:"Auto business reports"},
+  {id:"resume_a",n:"Resume Builder Agent",i:"📄",r:2890,c:"Business",s:"READY",d:"ATS-optimized resumes"},
+  {id:"biz_a",n:"Business Plan Agent",i:"📈",r:1123,c:"Business",s:"READY",d:"Investor-ready plans"},
+  {id:"customer_a",n:"Customer Support Agent",i:"🤝",r:4521,c:"Business",s:"ACTIVE",d:"24/7 support automation"},
+  {id:"study_a",n:"Study Assistant Agent",i:"📚",r:3456,c:"Education",s:"ACTIVE",d:"Personalized study plans"},
+  {id:"research_a",n:"AI Research Agent",i:"🔬",r:987,c:"Research",s:"READY",d:"Deep topic research"},
+  {id:"hindi_a",n:"Hindi AI Agent",i:"🇮🇳",r:5234,c:"Bharat",s:"ACTIVE",d:"Complete Hindi AI"},
+  {id:"creator_a",n:"Creator Economy Agent",i:"🌟",r:2103,c:"Creator",s:"READY",d:"Full creator toolkit"},
+];
+
+const WORKFLOWS=[
+  {id:"w1",n:"YouTube Automation",nodes:["Upload Video","Generate Caption","Post Instagram","Send Email","Analytics"],i:"▶️",col:"#ef4444"},
+  {id:"w2",n:"Content Marketing",nodes:["Research Topic","Write Blog","Generate Images","Post Social","Track Results"],i:"📊",col:"#06b6d4"},
+  {id:"w3",n:"Lead Generation",nodes:["Find Prospects","Qualify Leads","Write Email","Send Campaign","Follow Up"],i:"🎯",col:"#00ff88"},
+  {id:"w4",n:"Product Launch",nodes:["Landing Page","Ad Copy","Design Assets","Launch Campaign","Monitor ROI"],i:"🚀",col:"#a855f7"},
+  {id:"w5",n:"Blog to Social",nodes:["Write Blog","Extract Quotes","Create Captions","Post All Platforms","Analyze"],i:"✍️",col:"#f59e0b"},
+  {id:"w6",n:"Business Setup",nodes:["Business Plan","Logo Design","Website Build","Email Setup","Launch"],i:"🏪",col:"#ff6b35"},
+  {id:"w7",n:"SaaS Launch",nodes:["Define MVP","Build Product","Create Landing","Setup Payments","Acquire Users"],i:"💻",col:"#ec4899"},
+  {id:"w8",n:"Creator Growth",nodes:["Niche Research","Content Calendar","Batch Create","Auto Post","Scale"],i:"🌟",col:"#84cc16"},
+];
+
+/* ─── SYSTEM PROMPTS ────────────────────────────────── */
+function getSys(id){
+  const M={
+    blog:"You are an expert SEO blog writer. Write comprehensive blog posts with H2/H3 headings, keyword-optimized content, compelling intro, detailed sections, and strong conclusion with CTA.",
+    code:"You are a senior full-stack developer. Generate clean, well-commented, production-ready code with setup instructions and examples. Include error handling.",
+    game_builder:"You are a master HTML5 game developer. Create a COMPLETE, fully playable single-file HTML5 game using vanilla JS and Canvas API. Include scoring, levels, game over/restart. Output FULL HTML code in a code block.",
+    game:"You are a master HTML5 game developer. Create a COMPLETE, playable single-file HTML5 game. Output FULL HTML code in a code block.",
+    website:"You are a world-class web developer. Create a complete, beautiful, responsive single-file HTML/CSS/JS website with animations, navigation, hero, features, testimonials, footer. Make it production-ready.",
+    website_builder:"You are a world-class web developer. Create a complete, beautiful, responsive single-file HTML/CSS/JS website. Include: navigation, hero, features, pricing, testimonials, footer. Production-ready.",
+    app_builder:"You are an expert React developer. Create a complete, functional React app with hooks, state management, beautiful UI. Include all logic and make it production-ready.",
+    mobile_app:"You are an expert React Native developer. Create a complete mobile app structure with navigation, screens, and state management. Provide full code and setup instructions.",
+    landing:"You are a CRO expert. Create a high-converting landing page with headline, value proposition, features with benefits, social proof, pricing, FAQ, multiple CTAs. Full HTML/CSS/JS.",
+    saas:"You are a senior SaaS architect. Create a complete SaaS boilerplate with: auth flow, dashboard layout, subscription logic, API routes, database schema, deployment checklist.",
+    platform:"You are a platform architect. Design and code a complete platform with user roles, marketplace logic, payment flow, commission system, reviews, and analytics. Full architecture and code.",
+    automation_b:"You are an automation expert. Design a complete AI automation workflow with triggers, conditions, actions, error handling. Provide implementation code and tool recommendations.",
+    ecommerce:"You are an e-commerce expert. Create a complete online store with product catalog, cart, checkout, UPI/COD payment, order management, and admin panel. Full single-file HTML/CSS/JS.",
+    img_gen:"You are the world's best AI image prompt engineer. Create 3 ultra-detailed prompts optimized for Midjourney v6, DALL-E 3, FLUX.2, Ideogram V3. Include style, lighting, composition, camera, mood, quality modifiers.",
+    music_gen:"You are a Suno V5 expert. Create detailed music prompts with genre, instruments, BPM, key, mood, song structure, Suno V5 style tags, and example hook lyrics.",
+    math:"You are an expert mathematics professor. Solve completely: show all working, explain each step, state formulas used, verify the answer.",
+    iit_jee:"You are an IIT JEE expert. Solve with: complete working, all formulas, step-by-step approach, shortcut tricks, difficulty rating, and related JEE concepts to study.",
+    hindi_ai:"Aap AI Yog Lab ke expert Hindi AI assistant hain. Sab kuch sundar, shuddh aur fluent Hindi mein dijiye. Complex topics ko simple examples se samjhayein.",
+    translate:"You are the best multilingual specialist for Indian languages. Provide accurate translations with cultural context. Support Hindi, Bengali, Telugu, Tamil, Kannada, Malayalam, Marathi, Gujarati, Punjabi, Urdu.",
+    cricket:"You are a world-class cricket analyst. Provide deep analysis: statistics, pitch conditions, team strategies, player form, match predictions with reasoning.",
+    bollywood:"You are a Bollywood expert and Hindi film scriptwriter. Create compelling scripts, dialogues, song lyrics in Hindi/Urdu with proper poetic meter. Keep the drama and masala high!",
+    business_plan:"You are a startup mentor. Create comprehensive business plan: executive summary, market size (TAM/SAM/SOM), revenue model, competitive analysis, go-to-market, financial projections (3-year), and pitch deck outline.",
+    emergent:"You are the Emergent AI Agent — the most advanced meta-intelligence. You transcend individual tools by combining ALL domains simultaneously. When given any task: (1) Analyze from 5+ expert perspectives, (2) Find non-obvious cross-domain connections, (3) Create novel solutions from intersections, (4) Provide: immediate action steps + long-term strategy + surprising insights. Make users say 'I never thought of that!'",
+  };
+  return M[id]||"You are JARVIS — the world's most advanced AI in AI Yog Lab World Super App. Provide exceptional, detailed, actionable responses. Format clearly. Be the AI that changes lives.";
+}
+
+/* ─── API CALL (via local server — no CORS!) ─────────── */
+async function callAI(msgs, sys="", apiKey="", retries=3){
+  for(let i=0;i<retries;i++){
+    try{
+      const r=await fetch('/api/chat',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({messages:msgs,system:sys,apiKey,max_tokens:2000})
+      });
+      const d=await r.json();
+      if(d.error) return `❌ ${d.error.message||d.error}`;
+      return d.content?.[0]?.text||"No response.";
+    }catch(e){
+      if(i===retries-1)return"❌ Connection error. Make sure the server is running.";
+      await new Promise(x=>setTimeout(x,2000));
+    }
+  }
+}
+
+/* ─── VOICE ──────────────────────────────────────────── */
+function useVoice(){
+  const[listening,setL]=useState(false);
+  const[speaking,setSp]=useState(false);
+  const start=useCallback(cb=>{
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){alert("Voice not supported. Use Chrome.");return;}
+    const r=new SR();r.lang='en-IN';
+    r.onstart=()=>setL(true);r.onend=()=>setL(false);
+    r.onresult=e=>cb(e.results[0][0].transcript);
+    r.onerror=()=>setL(false);r.start();
+  },[]);
+  const speak=useCallback(t=>{
+    if(!window.speechSynthesis)return;
+    window.speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(t.slice(0,400));
+    u.rate=0.88;u.pitch=0.82;
+    u.onstart=()=>setSp(true);u.onend=()=>setSp(false);
+    window.speechSynthesis.speak(u);
+  },[]);
+  const stop=useCallback(()=>{window.speechSynthesis?.cancel();setSp(false);},[]);
+  return{listening,speaking,start,speak,stop};
+}
+
+/* ─── UI COMPONENTS ──────────────────────────────────── */
+const HUD=({children,style={},onClick,className=""})=>(
+  <div onClick={onClick} className={className} style={{background:"rgba(5,13,28,0.93)",border:"1px solid rgba(0,212,255,0.15)",borderRadius:6,backdropFilter:"blur(8px)",position:"relative",...style}}>
+    <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:"linear-gradient(90deg,transparent,rgba(0,212,255,0.3),transparent)"}}/>
+    {[[4,4,"borderTop","borderLeft"],[4,"calc(100% - 11px)","borderTop","borderRight"],["calc(100% - 11px)",4,"borderBottom","borderLeft"],["calc(100% - 11px)","calc(100% - 11px)","borderBottom","borderRight"]].map(([t,l,b1,b2],i)=>(
+      <span key={i} style={{position:"absolute",top:t,left:l,width:7,height:7,[b1]:"1.5px solid rgba(0,212,255,0.4)",[b2]:"1.5px solid rgba(0,212,255,0.4)"}}/>
+    ))}
+    {children}
+  </div>
+);
+
+const Btn=({ch,onClick,col="#00d4ff",disabled=false,full=false,sm=false,style={}})=>(
+  <button onClick={onClick} disabled={disabled} style={{background:`${col}12`,border:`1px solid ${col}`,color:col,fontFamily:"Orbitron",fontSize:sm?8:9,letterSpacing:1.5,padding:sm?"6px 12px":"9px 18px",cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.45:1,borderRadius:3,transition:"all 0.15s",textTransform:"uppercase",width:full?"100%":"auto",...style}}>{ch}</button>
+);
+
+const Tag=({children,col="#00d4ff"})=>(
+  <span style={{padding:"2px 8px",fontSize:9,fontFamily:"Orbitron",letterSpacing:1,background:`${col}12`,border:`1px solid ${col}25`,color:col,borderRadius:3}}>{children}</span>
+);
+
+const Inp=({value,onChange,onKeyDown,placeholder,multi=false,rows=3,type="text",style={}})=>{
+  const base={width:"100%",background:"rgba(0,8,20,0.85)",border:"1px solid rgba(0,212,255,0.14)",color:"#c8e8ff",fontFamily:"Rajdhani",fontSize:14,padding:"9px 12px",borderRadius:4,outline:"none",...style};
+  return multi?<textarea value={value} onChange={onChange} placeholder={placeholder} rows={rows} style={{...base,resize:"vertical"}}/>:<input type={type} value={value} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} style={base}/>;
+};
+
+const Spin=({col="#00d4ff",size=16})=>(
+  <div className="spin" style={{width:size,height:size,border:`2px solid ${col}1a`,borderTopColor:col,borderRadius:"50%",display:"inline-block"}}/>
+);
+
+/* ─── AUTH SCREEN ────────────────────────────────────── */
+function AuthScreen({onLogin}){
+  const[mode,setMode]=useState("login"); // login | register
+  const[name,setName]=useState("");
+  const[email,setEmail]=useState("");
+  const[pass,setPass]=useState("");
+  const[err,setErr]=useState("");
+  const[loading,setLoading]=useState(false);
+
+  // Google Sign-In callback
+  useEffect(()=>{
+    window.handleGoogleSignIn=(response)=>{
+      try{
+        const payload=JSON.parse(atob(response.credential.split('.')[1]));
+        const user={name:payload.name,email:payload.email,avatar:payload.picture,provider:"google",id:payload.sub};
+        LS.set("ayl_user",user);
+        onLogin(user);
+      }catch(e){setErr("Google sign-in failed. Try email login.");}
+    };
+    if(window.google&&GOOGLE_CLIENT_ID!=="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"){
+      window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:window.handleGoogleSignIn});
+      window.google.accounts.id.renderButton(document.getElementById('g-btn'),{theme:'filled_black',size:'large',shape:'pill',text:'continue_with'});
+    }
+  },[]);
+
+  const submit=()=>{
+    if(!email.trim()){setErr("Email required");return;}
+    if(mode==="register"&&!name.trim()){setErr("Name required");return;}
+    setLoading(true);
+    // Simulate auth (stored locally)
+    setTimeout(()=>{
+      const users=LS.get("ayl_users",[]);
+      if(mode==="login"){
+        const found=users.find(u=>u.email===email);
+        if(!found){setErr("Account not found. Please register.");setLoading(false);return;}
+        LS.set("ayl_user",found);
+        onLogin(found);
+      }else{
+        if(users.find(u=>u.email===email)){setErr("Email already registered.");setLoading(false);return;}
+        const user={name,email,id:Date.now().toString(),provider:"email",avatar:null};
+        LS.set("ayl_users",[...users,user]);
+        LS.set("ayl_user",user);
+        onLogin(user);
+      }
+      setLoading(false);
+    },600);
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:"#040d1a",backgroundImage:HEX_BG,display:"flex",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}>
+      {[180,320,460].map(s=>(
+        <div key={s} style={{position:"absolute",width:s,height:s,border:"1px solid rgba(0,212,255,0.05)",borderRadius:"50%",top:"50%",left:"50%",transform:"translate(-50%,-50%)",animation:`glow ${2+s/100}s ease infinite`}}/>
+      ))}
+      <HUD style={{width:"100%",maxWidth:420,padding:36,position:"relative",zIndex:1}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div className="float-anim" style={{fontSize:48,marginBottom:12}}>⚡</div>
+          <div style={{fontFamily:"Orbitron",fontSize:22,fontWeight:900,background:"linear-gradient(135deg,#00d4ff,#00ff88)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:4}}>AI YOG LAB</div>
+          <div style={{fontFamily:"Orbitron",fontSize:9,color:"#00d4ff66",letterSpacing:4}}>WORLD SUPER APP</div>
+        </div>
+
+        {/* Google Sign-In */}
+        <div id="g-btn" style={{display:"flex",justifyContent:"center",marginBottom:16,minHeight:40}}/>
+        {GOOGLE_CLIENT_ID==="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"&&(
+          <div style={{textAlign:"center",color:"#3a5a7a",fontSize:11,marginBottom:16,fontFamily:"Orbitron",letterSpacing:1}}>— OR CONTINUE WITH EMAIL —</div>
+        )}
+        {GOOGLE_CLIENT_ID!=="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"&&(
+          <div style={{textAlign:"center",color:"#3a5a7a",fontSize:11,marginBottom:12}}>— or use email —</div>
+        )}
+
+        {/* Tabs */}
+        <div style={{display:"flex",gap:4,marginBottom:18,background:"rgba(0,8,20,0.5)",padding:3,borderRadius:5}}>
+          {["login","register"].map(m=>(
+            <button key={m} onClick={()=>{setMode(m);setErr("");}} style={{flex:1,padding:"7px",fontFamily:"Orbitron",fontSize:9,letterSpacing:1,cursor:"pointer",borderRadius:4,border:"none",background:mode===m?"rgba(0,212,255,0.15)":"transparent",color:mode===m?"#00d4ff":"#5a8cb0",transition:"all 0.15s"}}>{m==="login"?"SIGN IN":"REGISTER"}</button>
+          ))}
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+          {mode==="register"&&<Inp value={name} onChange={e=>setName(e.target.value)} placeholder="Your name"/>}
+          <Inp value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" type="email"/>
+          <Inp value={pass} onChange={e=>setPass(e.target.value)} placeholder="Password" type="password" onKeyDown={e=>e.key==="Enter"&&submit()}/>
+        </div>
+
+        {err&&<div style={{padding:"8px 12px",marginBottom:12,background:"rgba(255,51,102,0.08)",border:"1px solid rgba(255,51,102,0.25)",borderRadius:4,fontSize:12,color:"#ff6688"}}>{err}</div>}
+
+        <Btn ch={loading?(mode==="login"?"SIGNING IN...":"CREATING ACCOUNT..."):mode==="login"?"→ SIGN IN":"→ CREATE ACCOUNT"} onClick={submit} disabled={loading} full/>
+      </HUD>
+    </div>
+  );
+}
+
+/* ─── API KEY SETUP ──────────────────────────────────── */
+function KeySetup({onSave,existing={},onSkip}){
+  const[claude,setClaude]=useState(existing.claude||"");
+  const[testing,setTesting]=useState(false);
+  const[status,setStatus]=useState("");
+
+  const testAndSave=async()=>{
+    if(!claude.trim()){setStatus("❌ Claude API key required");return;}
+    if(!claude.startsWith("gsk_")){setStatus("❌ Key must start with gsk_");return;}
+    setTesting(true);setStatus("⏳ Testing API key...");
+    try{
+      const r=await fetch('/api/test-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:claude})});
+      const d=await r.json();
+      if(d.ok){setStatus("✓ API key verified!");setTimeout(()=>onSave({claude}),600);}
+      else{setStatus("❌ "+d.error);}
+    }catch{setStatus("❌ Server not running. Start with: npm start");}
+    setTesting(false);
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:"#040d1a",backgroundImage:HEX_BG,display:"flex",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}>
+      {[200,360].map(s=>(
+        <div key={s} style={{position:"absolute",width:s,height:s,border:"1px solid rgba(0,212,255,0.05)",borderRadius:"50%",top:"50%",left:"50%",transform:"translate(-50%,-50%)"}}/>
+      ))}
+      <HUD style={{width:"100%",maxWidth:460,padding:32,position:"relative",zIndex:1}}>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div style={{fontSize:36,marginBottom:10}}>🔑</div>
+          <div style={{fontFamily:"Orbitron",fontSize:14,color:"#00d4ff",letterSpacing:2,marginBottom:6}}>API KEY SETUP</div>
+          <p style={{color:"#5a8cb0",fontSize:12}}>Enter your Claude API key to power all AI tools</p>
+        </div>
+
+        <div style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <label style={{fontFamily:"Orbitron",fontSize:8,color:"#00d4ff",letterSpacing:2}}>GROQ API KEY (FREE) <span style={{color:"#ff3366"}}>*</span></label>
+            <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{fontFamily:"Orbitron",fontSize:8,color:"#00d4ff60",textDecoration:"none",letterSpacing:1}}>GET FREE KEY →</a>
+          </div>
+          <input type="password" value={claude} onChange={e=>setClaude(e.target.value)} onKeyDown={e=>e.key==="Enter"&&testAndSave()} placeholder="gsk_..." style={{width:"100%",background:"rgba(0,8,20,0.9)",border:`1px solid ${claude?"rgba(0,212,255,0.4)":"rgba(0,212,255,0.14)"}`,color:"#c8e8ff",fontFamily:"Rajdhani",fontSize:14,padding:"11px 14px",borderRadius:4,outline:"none"}}/>
+          <p style={{fontSize:10,color:"#2a4a6a",marginTop:4}}>Free at console.groq.com · Stored locally · Never shared</p>
+        </div>
+
+        {status&&<div style={{padding:"8px 12px",marginBottom:14,background:status.includes("✓")?"rgba(0,255,136,0.07)":"rgba(255,51,102,0.07)",border:`1px solid ${status.includes("✓")?"rgba(0,255,136,0.3)":"rgba(255,51,102,0.25)"}`,borderRadius:4,fontSize:12,color:status.includes("✓")?"#00ff88":"#ff6688"}}>{status}</div>}
+
+        <Btn ch={testing?"⏳ TESTING...":"⚡ VERIFY & CONTINUE"} onClick={testAndSave} disabled={testing||!claude.trim()} full/>
+        {existing.claude&&<button onClick={onSkip} style={{width:"100%",marginTop:8,background:"none",border:"none",color:"#2a4a6a",fontFamily:"Orbitron",fontSize:8,padding:"6px",cursor:"pointer",letterSpacing:1}}>SKIP — USE EXISTING KEY</button>}
+      </HUD>
+    </div>
+  );
+}
+
+/* ─── MAIN APP ───────────────────────────────────────── */
+function App(){
+  const[user,setUser]=useState(()=>LS.get("ayl_user"));
+  const[apiKeys,setApiKeys]=useState(()=>LS.get("ayl_keys",{claude:"",groq:"",imgbb:""}));
+  const[couponActive,setCouponActive]=useState(()=>LS.get("ayl_coupon",false));
+  const[screen,setScreen]=useState("landing"); // landing | auth | keysetup | app
+  const[nav,setNav]=useState("dashboard");
+  const[sidebar,setSidebar]=useState(true);
+  const[stats,setStats]=useState({used:0,gen:0});
+  const[projects,setProjects]=useState(()=>LS.get("ayl_projects",[]));
+  const voice=useVoice();
+
+  const plan=couponActive?"unlimited":LS.get("ayl_plan","free");
+
+  const saveKeys=keys=>{LS.set("ayl_keys",keys);setApiKeys(keys);setScreen("app");};
+  const addProject=(name,tool)=>{
+    const p=[{name,tool,time:new Date().toLocaleString()},...projects].slice(0,30);
+    setProjects(p);LS.set("ayl_projects",p);
+    setStats(s=>({used:s.used+1,gen:s.gen+1}));
+  };
+  const activateCoupon=()=>{LS.set("ayl_coupon",true);setCouponActive(true);};
+  const logout=()=>{LS.del("ayl_user");setUser(null);setScreen("landing");};
+
+  if(screen==="landing") return <Landing onEnter={()=>setScreen(user?"app":"auth")}/>;
+  if(screen==="auth") return <AuthScreen onLogin={u=>{setUser(u);setScreen(apiKeys.claude?"app":"keysetup");}}/>;
+  if(screen==="keysetup") return <KeySetup onSave={saveKeys} existing={apiKeys} onSkip={()=>setScreen("app")}/>;
+
+  const NAV=[
+    {id:"dashboard",l:"Dashboard",i:"⊞"},
+    {id:"chat",l:"JARVIS Chat",i:"⚡"},
+    {id:"tools",l:"AI Tools (100+)",i:"🔧"},
+    {id:"builders",l:"Builders (8)",i:"🏗️"},
+    {id:"agents",l:"AI Agents (26+)",i:"🤖"},
+    {id:"automation",l:"Automation",i:"⚙️"},
+    {id:"knowledge",l:"Knowledge Brain",i:"🧠"},
+    {id:"marketplace",l:"Marketplace",i:"🏪"},
+    {id:"pricing",l:"Pricing",i:"💎"},
+    {id:"settings",l:"Settings",i:"⚙️"},
+  ];
+
+  return(
+    <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"#040d1a",backgroundImage:HEX_BG}}>
+      {/* SIDEBAR */}
+      <div style={{width:sidebar?222:52,transition:"width 0.22s",borderRight:"1px solid rgba(0,212,255,0.07)",display:"flex",flexDirection:"column",flexShrink:0,overflowX:"hidden",background:"rgba(2,6,16,0.98)"}}>
+        <div style={{padding:"12px 8px",borderBottom:"1px solid rgba(0,212,255,0.07)",display:"flex",alignItems:"center",gap:8}}>
+          <div className="glow-anim" style={{width:30,height:30,background:"rgba(0,212,255,0.14)",border:"1px solid rgba(0,212,255,0.45)",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>⚡</div>
+          {sidebar&&<div><div style={{fontFamily:"Orbitron",fontSize:10,fontWeight:700,background:"linear-gradient(135deg,#00d4ff,#00ff88)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1.2}}>AI YOG LAB</div><div style={{fontFamily:"Orbitron",fontSize:7,color:"#00d4ff40",letterSpacing:2}}>WORLD SUPER APP</div></div>}
+        </div>
+        <nav style={{flex:1,padding:6,overflowY:"auto"}}>
+          {NAV.filter(n=>n.id!=="settings").map(item=>(
+            <div key={item.id} onClick={()=>setNav(item.id)} style={{padding:"7px 8px",cursor:"pointer",borderRadius:4,display:"flex",alignItems:"center",gap:8,color:nav===item.id?"#00d4ff":"#5a8cb0",background:nav===item.id?"rgba(0,212,255,0.08)":"transparent",borderLeft:nav===item.id?"2px solid #00d4ff":"2px solid transparent",transition:"all 0.13s",marginBottom:1}}>
+              <span style={{fontSize:13,flexShrink:0}}>{item.i}</span>
+              {sidebar&&<span style={{fontSize:11,whiteSpace:"nowrap",overflow:"hidden"}}>{item.l}</span>}
+            </div>
+          ))}
+        </nav>
+        <div style={{borderTop:"1px solid rgba(0,212,255,0.07)",padding:6}}>
+          <div onClick={()=>setNav("settings")} style={{padding:"7px 8px",cursor:"pointer",borderRadius:4,display:"flex",alignItems:"center",gap:8,color:nav==="settings"?"#00d4ff":"#5a8cb0",background:nav==="settings"?"rgba(0,212,255,0.08)":"transparent",borderLeft:nav==="settings"?"2px solid #00d4ff":"2px solid transparent",transition:"all 0.13s",marginBottom:6}}>
+            <span style={{fontSize:13,flexShrink:0}}>⚙️</span>
+            {sidebar&&<span style={{fontSize:11}}>Settings</span>}
+          </div>
+          {sidebar&&user&&(
+            <div style={{padding:"8px 10px",background:"rgba(0,212,255,0.04)",border:"1px solid rgba(0,212,255,0.1)",borderRadius:4}}>
+              <div style={{fontFamily:"Orbitron",fontSize:8,color:couponActive?"#a855f7":"#00d4ff",letterSpacing:2}}>{couponActive?"✨ UNLIMITED":"FREE PLAN"}</div>
+              <div style={{fontSize:10,color:"#3a6080",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* MAIN */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div style={{padding:"8px 14px",borderBottom:"1px solid rgba(0,212,255,0.07)",display:"flex",alignItems:"center",gap:8,flexShrink:0,background:"rgba(2,6,16,0.99)"}}>
+          <button onClick={()=>setSidebar(!sidebar)} style={{background:"none",border:"1px solid rgba(0,212,255,0.14)",color:"#00d4ff",width:28,height:28,cursor:"pointer",borderRadius:4,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>☰</button>
+          <span style={{fontFamily:"Orbitron",fontSize:10,color:"#00d4ff",letterSpacing:2}}>{NAV.find(n=>n.id===nav)?.l?.toUpperCase()||"SETTINGS"}</span>
+          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
+            {!apiKeys.claude&&<span onClick={()=>setScreen("keysetup")} style={{fontFamily:"Orbitron",fontSize:8,color:"#ff3366",cursor:"pointer",border:"1px solid rgba(255,51,102,0.3)",padding:"2px 8px",borderRadius:3,animation:"blink 2s infinite"}}>⚠ SET API KEY</span>}
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:apiKeys.claude?"#00ff88":"#ff3366",animation:"blink 2s infinite"}}/>
+              <span style={{fontFamily:"Orbitron",fontSize:8,color:apiKeys.claude?"#00ff88":"#ff3366",letterSpacing:1}}>{apiKeys.claude?"ONLINE":"NO KEY"}</span>
+            </div>
+            {couponActive&&<span style={{fontFamily:"Orbitron",fontSize:8,color:"#a855f7",letterSpacing:1}}>✨ UNLIMITED</span>}
+            {voice.listening&&<span style={{fontFamily:"Orbitron",fontSize:8,color:"#ff3366",animation:"blink 0.6s infinite"}}>🎤</span>}
+            {voice.speaking&&<span style={{fontFamily:"Orbitron",fontSize:8,color:"#f59e0b"}}>🔊</span>}
+            {user&&<button onClick={logout} style={{background:"none",border:"1px solid rgba(0,212,255,0.12)",color:"#3a6080",fontFamily:"Orbitron",fontSize:7,padding:"3px 8px",cursor:"pointer",borderRadius:3,letterSpacing:1}}>LOGOUT</button>}
+          </div>
+        </div>
+        <div style={{flex:1,overflow:"hidden"}}>
+          {nav==="dashboard"&&<DashboardPage onNav={setNav} plan={plan} stats={stats} projects={projects} user={user}/>}
+          {nav==="chat"&&<ChatPage apiKeys={apiKeys} voice={voice} addProject={addProject}/>}
+          {nav==="tools"&&<ToolsPage apiKeys={apiKeys} onRun={n=>addProject(n+" output",n)}/>}
+          {nav==="builders"&&<BuildersPage apiKeys={apiKeys} onRun={n=>addProject(n+" build",n)}/>}
+          {nav==="agents"&&<AgentsPage apiKeys={apiKeys}/>}
+          {nav==="automation"&&<AutomationPage apiKeys={apiKeys}/>}
+          {nav==="knowledge"&&<KnowledgePage apiKeys={apiKeys}/>}
+          {nav==="marketplace"&&<MarketplacePage/>}
+          {nav==="pricing"&&<PricingPage plan={plan} coupon={couponActive} onUpgrade={p=>{LS.set("ayl_plan",p);setNav("dashboard");}}/>}
+          {nav==="settings"&&<SettingsPage apiKeys={apiKeys} onUpdateKeys={()=>setScreen("keysetup")} user={user} plan={plan} onActivateCoupon={activateCoupon} coupon={couponActive}/>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── LANDING ────────────────────────────────────────── */
+function Landing({onEnter}){
+  const[v,setV]=useState(false);
+  useEffect(()=>{setTimeout(()=>setV(true),80);},[]);
+  return(
+    <div style={{minHeight:"100vh",background:"#040d1a",backgroundImage:HEX_BG,display:"flex",alignItems:"center",justifyContent:"center",padding:32,position:"relative",overflow:"hidden"}}>
+      {[160,300,440,580].map((s,i)=>(
+        <div key={s} style={{position:"absolute",width:s,height:s,border:`1px solid rgba(0,212,255,0.0${i+2})`,borderRadius:"50%",top:"50%",left:"50%",transform:"translate(-50%,-50%)",animation:`glow ${2+i*0.4}s ease infinite ${i*0.2}s`}}/>
+      ))}
+      <div style={{textAlign:"center",position:"relative",zIndex:1,transition:"all 0.9s",opacity:v?1:0,transform:v?"translateY(0)":"translateY(28px)"}}>
+        <div className="float-anim" style={{fontSize:54,marginBottom:18}}>⚡</div>
+        <div style={{fontFamily:"Orbitron",fontSize:40,fontWeight:900,background:"linear-gradient(135deg,#00d4ff 0%,#00ff88 50%,#a855f7 100%)",backgroundSize:"200%",animation:"grad 4s ease infinite",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1.1,marginBottom:8}}>AI YOG LAB</div>
+        <div style={{fontFamily:"Orbitron",fontSize:12,color:"#00d4ff80",letterSpacing:6,marginBottom:10}}>WORLD SUPER APP</div>
+        <h1 style={{fontFamily:"Orbitron",fontSize:34,fontWeight:900,color:"#fff",lineHeight:1.2,marginBottom:14,maxWidth:650}}>
+          Build · Create · Automate<br/>
+          <span style={{background:"linear-gradient(135deg,#00d4ff,#00ff88)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>With One Platform</span>
+        </h1>
+        <p style={{color:"#5a8cb0",fontSize:15,maxWidth:540,margin:"0 auto 36px",lineHeight:1.8}}>100+ AI tools · 26+ Agents · 8 Builders · Automation · Marketplace · Voice · Knowledge Brain</p>
+        <div style={{display:"flex",gap:32,justifyContent:"center",marginBottom:36,flexWrap:"wrap"}}>
+          {[["100+","AI Tools"],["26+","AI Agents"],["8","Builders"],["0","Keys to Setup"]].map(([n,l])=>(
+            <div key={l} style={{textAlign:"center"}}>
+              <div style={{fontFamily:"Orbitron",fontSize:24,fontWeight:700,color:"#00d4ff"}}>{n}</div>
+              <div style={{fontSize:10,color:"#4a7090",letterSpacing:2,marginTop:2}}>{l}</div>
+            </div>
+          ))}
+        </div>
+        <button onClick={onEnter} style={{background:"linear-gradient(135deg,#00d4ff,#00ff88)",border:"none",color:"#040d1a",fontFamily:"Orbitron",fontSize:13,fontWeight:700,padding:"16px 54px",borderRadius:4,cursor:"pointer",letterSpacing:2,boxShadow:"0 0 40px rgba(0,212,255,0.5)",clipPath:"polygon(14px 0%,100% 0%,calc(100% - 14px) 100%,0% 100%)"}}>
+          ⚡ LAUNCH APP
+        </button>
+        <p style={{color:"#1a3048",fontSize:10,marginTop:18,fontFamily:"Orbitron",letterSpacing:3}}>POWERED BY CLAUDE AI · MADE IN INDIA 🇮🇳</p>
+      </div>
+    </div>
+  );
+}
+
+/* ─── DASHBOARD ──────────────────────────────────────── */
+function DashboardPage({onNav,plan,stats,projects,user}){
+  return(
+    <div style={{padding:18,overflowY:"auto",height:"100%"}} className="fade-up">
+      <div style={{marginBottom:14}}>
+        <h2 style={{fontFamily:"Orbitron",fontSize:15,color:"#fff",marginBottom:2}}>COMMAND CENTER</h2>
+        <p style={{color:"#5a8cb0",fontSize:12}}>Welcome back, {user?.name||"User"} 👋 All systems operational.</p>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(115px,1fr))",gap:8,marginBottom:14}}>
+        {[
+          {l:"AI Tools",v:"100+",i:"⚡",c:"#00d4ff"},{l:"AI Agents",v:"26+",i:"🤖",c:"#00ff88"},
+          {l:"Builders",v:"8",i:"🏗️",c:"#a855f7"},{l:"Workflows",v:"8",i:"⚙️",c:"#8b5cf6"},
+          {l:"Used Today",v:stats.used,i:"🔧",c:"#ff6b35"},{l:"Total Gens",v:stats.gen,i:"✨",c:"#ec4899"},
+          {l:"Projects",v:projects.length,i:"📁",c:"#f59e0b"},{l:"Plan",v:plan.toUpperCase(),i:"💎",c:plan==="unlimited"?"#a855f7":"#00ff88"},
+        ].map(s=>(
+          <HUD key={s.l} style={{padding:10}}>
+            <div style={{fontSize:16,marginBottom:2}}>{s.i}</div>
+            <div style={{fontFamily:"Orbitron",fontSize:15,fontWeight:700,color:s.c}}>{s.v}</div>
+            <div style={{fontSize:9,color:"#5a8cb0"}}>{s.l}</div>
+          </HUD>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+        <HUD style={{padding:14,gridColumn:"span 2"}}>
+          <div style={{fontFamily:"Orbitron",fontSize:8,color:"#00d4ff",letterSpacing:2,marginBottom:10}}>QUICK LAUNCH</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+            {[{i:"⚡",n:"JARVIS Chat",id:"chat"},{i:"🔧",n:"AI Tools",id:"tools"},{i:"🏗️",n:"Builders",id:"builders"},{i:"🤖",n:"AI Agents",id:"agents"},{i:"⚙️",n:"Automation",id:"automation"},{i:"🧠",n:"Knowledge Brain",id:"knowledge"}].map(q=>(
+              <div key={q.n} onClick={()=>onNav(q.id)} style={{padding:"8px 10px",background:"rgba(0,18,40,0.5)",border:"1px solid rgba(0,212,255,0.08)",borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",gap:7}}>
+                <span style={{fontSize:14}}>{q.i}</span>
+                <span style={{fontSize:11,color:"#c8e8ff"}}>{q.n}</span>
+              </div>
+            ))}
+          </div>
+        </HUD>
+        <HUD style={{padding:14}}>
+          <div style={{fontFamily:"Orbitron",fontSize:8,color:"#00d4ff",letterSpacing:2,marginBottom:10}}>SYSTEM STATUS</div>
+          {[
+            {n:"JARVIS Core",s:"ONLINE",c:"#00ff88"},{n:"Claude API",s:"ACTIVE",c:"#00ff88"},
+            {n:"Voice System",s:"READY",c:"#00d4ff"},{n:"Agent Network",s:"26+ READY",c:"#00ff88"},
+            {n:"Builder Engine",s:"8 ENGINES",c:"#00ff88"},{n:"Knowledge Brain",s:"ONLINE",c:"#00ff88"},
+            {n:"Marketplace",s:"LIVE",c:"#f59e0b"},{n:"Emergent AI",s:"ACTIVE",c:"#a855f7"},
+          ].map(x=>(
+            <div key={x.n} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid rgba(0,212,255,0.03)"}}>
+              <span style={{fontSize:10,color:"#7a9ec0"}}>{x.n}</span>
+              <span style={{fontFamily:"Orbitron",fontSize:7,color:x.c,letterSpacing:1}}>● {x.s}</span>
+            </div>
+          ))}
+        </HUD>
+      </div>
+      <HUD style={{padding:14}}>
+        <div style={{fontFamily:"Orbitron",fontSize:8,color:"#a855f7",letterSpacing:2,marginBottom:10}}>PROJECT MANAGER</div>
+        {projects.length===0?(
+          <div style={{textAlign:"center",padding:"16px",color:"#2a4060",fontSize:12}}>No projects yet. Start building! ⚡</div>
+        ):(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:7}}>
+            {projects.slice(0,8).map((p,i)=>(
+              <div key={i} style={{padding:"9px 11px",background:"rgba(0,10,26,0.6)",border:"1px solid rgba(168,85,247,0.1)",borderRadius:5}}>
+                <div style={{fontSize:11,color:"#c8e8ff",fontWeight:600,marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+                <div style={{fontSize:9,color:"#5a8cb0",marginBottom:5}}>{p.tool}</div>
+                <div style={{display:"flex",justifyContent:"space-between"}}>
+                  <span style={{fontSize:9,color:"#2a4060"}}>{p.time}</span>
+                  <span style={{padding:"1px 5px",fontSize:7,fontFamily:"Orbitron",background:"rgba(0,255,136,0.07)",border:"1px solid rgba(0,255,136,0.2)",color:"#00ff88",borderRadius:3}}>DONE</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </HUD>
+    </div>
+  );
+}
+
+/* ─── TOOLS ──────────────────────────────────────────── */
+function ToolsPage({apiKeys,onRun}){
+  const[search,setSearch]=useState("");
+  const[cat,setCat]=useState("All");
+  const[sel,setSel]=useState(null);
+  const[inp,setInp]=useState("");
+  const[out,setOut]=useState("");
+  const[loading,setLoading]=useState(false);
+  const allCats=useMemo(()=>["All",...Array.from(new Set(TOOLS.map(t=>t.c)))],[]);
+  const filtered=useMemo(()=>TOOLS.filter(t=>(cat==="All"||t.c===cat)&&(!search||t.n.toLowerCase().includes(search.toLowerCase()))),[cat,search]);
+  const run=async()=>{
+    if(!inp.trim()||!sel)return;
+    setLoading(true);setOut("");
+    const r=await callAI([{role:"user",content:inp}],getSys(sel.id),apiKeys.claude);
+    setOut(r);setLoading(false);onRun(sel.n);
+  };
+  return(
+    <div style={{display:"flex",height:"100%",overflow:"hidden"}}>
+      <div style={{width:240,overflowY:"auto",padding:9,borderRight:"1px solid rgba(0,212,255,0.06)",flexShrink:0}}>
+        <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search tools..." style={{marginBottom:7,fontSize:12}}/>
+        <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:6}}>
+          {allCats.map(c=>(
+            <button key={c} onClick={()=>setCat(c)} style={{padding:"2px 6px",fontSize:7,fontFamily:"Orbitron",letterSpacing:1,cursor:"pointer",borderRadius:3,border:`1px solid ${cat===c?"#00d4ff":"rgba(0,212,255,0.1)"}`,background:cat===c?"rgba(0,212,255,0.1)":"transparent",color:cat===c?"#00d4ff":"#5a8cb0"}}>{c}</button>
+          ))}
+        </div>
+        <div style={{fontSize:8,color:"#2a4a6a",marginBottom:5,fontFamily:"Orbitron",letterSpacing:1}}>{filtered.length} TOOLS</div>
+        <div style={{display:"flex",flexDirection:"column",gap:2}}>
+          {filtered.map(t=>(
+            <div key={t.id} onClick={()=>{setSel(t);setOut("");setInp("");}} style={{padding:"6px 8px",background:sel?.id===t.id?"rgba(0,212,255,0.07)":"rgba(0,10,24,0.4)",border:`1px solid ${sel?.id===t.id?t.col+"45":"rgba(0,212,255,0.05)"}`,borderRadius:4,cursor:"pointer",display:"flex",alignItems:"center",gap:6,transition:"all 0.12s"}}>
+              <span style={{fontSize:13,flexShrink:0}}>{t.i}</span>
+              <div style={{overflow:"hidden"}}>
+                <div style={{fontSize:10,color:"#c8e8ff",fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.n}</div>
+                <div style={{fontSize:9,color:"#5a8cb0"}}>{t.d}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{flex:1,padding:16,overflowY:"auto"}}>
+        {sel?(
+          <div className="fade-up">
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <div style={{width:40,height:40,background:`${sel.col}10`,border:`1px solid ${sel.col}30`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{sel.i}</div>
+              <div><h3 style={{fontFamily:"Orbitron",color:"#fff",fontSize:13,marginBottom:2}}>{sel.n}</h3><p style={{color:"#5a8cb0",fontSize:11}}>{sel.d}</p></div>
+              <Tag col={sel.col}>{sel.c}</Tag>
+            </div>
+            <HUD style={{padding:12,marginBottom:10}}>
+              <Inp value={inp} onChange={e=>setInp(e.target.value)} placeholder={`What do you want ${sel.n} to create...`} multi rows={4}/>
+              <div style={{marginTop:8}}><Btn ch={loading?"⚡ GENERATING...":"⚡ RUN "+sel.n.toUpperCase()} onClick={run} disabled={loading||!inp.trim()}/></div>
+            </HUD>
+            {loading&&<HUD style={{padding:12}}><div style={{display:"flex",alignItems:"center",gap:8}}><Spin/><span style={{fontFamily:"Orbitron",fontSize:9,color:"#00d4ff",letterSpacing:2}}>PROCESSING...</span></div></HUD>}
+            {out&&!loading&&(
+              <HUD style={{padding:14}} className="fade-up">
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                  <Tag col="#00ff88">✓ OUTPUT</Tag>
+                  <button onClick={()=>navigator.clipboard.writeText(out)} style={{background:"none",border:"1px solid rgba(0,212,255,0.18)",color:"#00d4ff",fontFamily:"Orbitron",fontSize:7,padding:"2px 8px",cursor:"pointer",borderRadius:3,letterSpacing:1}}>COPY</button>
+                </div>
+                <div style={{whiteSpace:"pre-wrap",lineHeight:1.78,color:"#c8e8ff",fontSize:13}}>{out}</div>
+              </HUD>
+            )}
+          </div>
+        ):(
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:10,color:"#1e3550"}}>
+            <span style={{fontSize:48}}>⚡</span>
+            <span style={{fontFamily:"Orbitron",fontSize:11,letterSpacing:2}}>SELECT A TOOL</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── BUILDERS ───────────────────────────────────────── */
+function BuildersPage({apiKeys,onRun}){
+  const[sel,setSel]=useState(null);
+  const[inp,setInp]=useState("");
+  const[out,setOut]=useState("");
+  const[loading,setLoading]=useState(false);
+  const run=async()=>{
+    if(!sel||!inp.trim())return;
+    setLoading(true);setOut("");
+    const r=await callAI([{role:"user",content:inp+"\n\nProvide complete, production-ready output with all code, instructions, and deployment steps."}],getSys(sel.id),apiKeys.claude);
+    setOut(r);setLoading(false);onRun(sel.n);
+  };
+  return(
+    <div style={{padding:18,overflowY:"auto",height:"100%"}}>
+      <div style={{marginBottom:14}}><h2 style={{fontFamily:"Orbitron",fontSize:15,color:"#fff",marginBottom:2}}>BUILDER ENGINES</h2><p style={{color:"#5a8cb0",fontSize:12}}>Generate complete apps, websites, games from a prompt</p></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,marginBottom:16}}>
+        {BUILDERS.map(b=>(
+          <HUD key={b.id} onClick={()=>{setSel(b);setOut("");setInp(b.ex);}} style={{padding:14,cursor:"pointer",border:`1px solid ${sel?.id===b.id?b.col:"rgba(0,212,255,0.1)"}`,background:sel?.id===b.id?`${b.col}07`:undefined,transition:"all 0.2s"}}>
+            <div style={{fontSize:26,marginBottom:7}}>{b.i}</div>
+            <div style={{fontFamily:"Orbitron",fontSize:11,color:sel?.id===b.id?b.col:"#c8e8ff",marginBottom:3}}>{b.n}</div>
+            <div style={{fontSize:10,color:"#5a8cb0"}}>{b.d}</div>
+          </HUD>
+        ))}
+      </div>
+      {sel&&(
+        <HUD style={{padding:18}} className="fade-up">
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><span style={{fontSize:24}}>{sel.i}</span><div><div style={{fontFamily:"Orbitron",fontSize:12,color:sel.col}}>{sel.n}</div><div style={{fontSize:11,color:"#5a8cb0"}}>{sel.d}</div></div></div>
+          <Inp value={inp} onChange={e=>setInp(e.target.value)} placeholder={sel.ex} multi rows={4} style={{marginBottom:10}}/>
+          <div style={{display:"flex",gap:8}}>
+            <Btn ch={loading?"⚡ BUILDING...":"🏗️ BUILD NOW"} onClick={run} disabled={loading||!inp.trim()} col={sel.col}/>
+            <button onClick={()=>setInp(sel.ex)} style={{background:"none",border:"1px solid rgba(0,212,255,0.15)",color:"#6a9ec0",fontFamily:"Orbitron",fontSize:8,padding:"8px 12px",cursor:"pointer",borderRadius:3,letterSpacing:1}}>EXAMPLE</button>
+          </div>
+          {loading&&<div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}><Spin col={sel.col}/><span style={{fontFamily:"Orbitron",fontSize:9,color:sel.col,letterSpacing:2}}>BUILDING...</span></div>}
+          {out&&!loading&&(
+            <HUD style={{padding:14,marginTop:12,border:`1px solid ${sel.col}20`}} className="fade-up">
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><Tag col={sel.col}>✓ BUILD COMPLETE</Tag><button onClick={()=>navigator.clipboard.writeText(out)} style={{background:"none",border:"1px solid rgba(0,212,255,0.18)",color:"#00d4ff",fontFamily:"Orbitron",fontSize:7,padding:"2px 8px",cursor:"pointer",borderRadius:3,letterSpacing:1}}>COPY ALL</button></div>
+              <div style={{whiteSpace:"pre-wrap",lineHeight:1.78,color:"#c8e8ff",fontSize:13}}>{out}</div>
+            </HUD>
+          )}
+        </HUD>
+      )}
+    </div>
+  );
+}
+
+/* ─── CHAT ───────────────────────────────────────────── */
+function ChatPage({apiKeys,voice,addProject}){
+  const[msgs,setMsgs]=useState(()=>LS.get("ayl_chat",[{role:"assistant",content:"JARVIS online. AI Yog Lab World Super App is fully operational.\n\nI can build websites, write content, generate code, plan businesses, solve math, translate 22 Indian languages, and much more.\n\nKya banayein aaj? 🚀"}]));
+  const[inp,setInp]=useState("");
+  const[loading,setLoading]=useState(false);
+  const[autoSpeak,setAS]=useState(false);
+  const ref=useRef(null);
+
+  useEffect(()=>{ref.current?.scrollIntoView({behavior:"smooth"});LS.set("ayl_chat",msgs.slice(-40));},[msgs]);
+
+  const send=async(txt)=>{
+    const m=(txt||inp).trim();if(!m)return;
+    setInp("");setMsgs(p=>[...p,{role:"user",content:m}]);setLoading(true);
+    const history=[...msgs,{role:"user",content:m}].filter(x=>x.role==="user"||x.role==="assistant").map(x=>({role:x.role,content:x.content}));
+    const r=await callAI(history.slice(-20),"You are JARVIS — the world's most advanced AI in AI Yog Lab World Super App. Be comprehensive, smart, genuinely impressive. Format responses clearly. Be the AI that changes lives.",apiKeys.claude);
+    setMsgs(p=>[...p,{role:"assistant",content:r}]);setLoading(false);
+    if(autoSpeak)voice?.speak(r);
+  };
+
+  const quick=["Build me a SaaS landing page in HTML","Write a viral YouTube script about AI","Create a business plan for a food delivery app","Jarvis build me a Snake game in HTML"];
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{padding:"8px 14px",borderBottom:"1px solid rgba(0,212,255,0.07)",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+        <div style={{width:7,height:7,borderRadius:"50%",background:"#00ff88",animation:"blink 2s infinite"}}/>
+        <span style={{fontFamily:"Orbitron",fontSize:10,color:"#00d4ff",letterSpacing:2}}>JARVIS CHAT</span>
+        <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+          <button onClick={()=>setAS(!autoSpeak)} style={{background:autoSpeak?"rgba(0,255,136,0.08)":"none",border:`1px solid ${autoSpeak?"rgba(0,255,136,0.3)":"rgba(0,212,255,0.14)"}`,color:autoSpeak?"#00ff88":"#5a8cb0",fontFamily:"Orbitron",fontSize:7,padding:"3px 8px",cursor:"pointer",borderRadius:3,letterSpacing:1}}>🔊 {autoSpeak?"ON":"OFF"}</button>
+          {voice?.speaking&&<button onClick={voice.stop} style={{background:"none",border:"1px solid rgba(255,51,102,0.3)",color:"#ff3366",fontFamily:"Orbitron",fontSize:7,padding:"3px 7px",cursor:"pointer",borderRadius:3}}>⏹</button>}
+          <button onClick={()=>{setMsgs([{role:"assistant",content:"JARVIS online. How can I help?"}]);LS.del("ayl_chat");}} style={{background:"none",border:"1px solid rgba(0,212,255,0.14)",color:"#5a8cb0",fontFamily:"Orbitron",fontSize:7,padding:"3px 7px",cursor:"pointer",borderRadius:3,letterSpacing:1}}>CLEAR</button>
+        </div>
+      </div>
+      {msgs.length===1&&(
+        <div style={{padding:"8px 12px",borderBottom:"1px solid rgba(0,212,255,0.05)",display:"flex",gap:5,flexWrap:"wrap",flexShrink:0}}>
+          {quick.map(q=><button key={q} onClick={()=>send(q)} style={{background:"rgba(0,212,255,0.04)",border:"1px solid rgba(0,212,255,0.1)",color:"#6a9ec0",fontFamily:"Rajdhani",fontSize:11,padding:"4px 9px",cursor:"pointer",borderRadius:4}}>{q}</button>)}
+        </div>
+      )}
+      <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
+        {msgs.map((m,i)=>(
+          <div key={i} style={{display:"flex",gap:8,justifyContent:m.role==="user"?"flex-end":"flex-start"}} className="fade-up">
+            {m.role==="assistant"&&<div style={{width:26,height:26,background:"rgba(0,212,255,0.13)",border:"1px solid rgba(0,212,255,0.38)",borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:11}}>⚡</div>}
+            <div style={{maxWidth:"76%",padding:"9px 13px",borderRadius:7,background:m.role==="user"?"rgba(0,212,255,0.08)":"rgba(0,12,28,0.9)",border:`1px solid ${m.role==="user"?"rgba(0,212,255,0.2)":"rgba(0,212,255,0.07)"}`,whiteSpace:"pre-wrap",lineHeight:1.75,fontSize:13,color:"#c8e8ff"}}>{m.content}</div>
+          </div>
+        ))}
+        {loading&&(
+          <div style={{display:"flex",gap:8}}>
+            <div style={{width:26,height:26,background:"rgba(0,212,255,0.13)",border:"1px solid rgba(0,212,255,0.38)",borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11}}>⚡</div>
+            <div style={{padding:"9px 14px",background:"rgba(0,12,28,0.9)",border:"1px solid rgba(0,212,255,0.07)",borderRadius:7,display:"flex",gap:4,alignItems:"center"}}>
+              {[0,0.25,0.5].map((d,i)=><div key={i} style={{width:5,height:5,background:"#00d4ff",borderRadius:"50%",animation:`blink 1s ${d}s infinite`}}/>)}
+            </div>
+          </div>
+        )}
+        <div ref={ref}/>
+      </div>
+      <div style={{padding:10,borderTop:"1px solid rgba(0,212,255,0.07)",display:"flex",gap:8,flexShrink:0}}>
+        <input value={inp} onChange={e=>setInp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Message JARVIS... (Enter to send)" style={{flex:1,background:"rgba(0,6,18,0.9)",border:"1px solid rgba(0,212,255,0.15)",color:"#c8e8ff",fontFamily:"Rajdhani",fontSize:14,padding:"9px 12px",borderRadius:4,outline:"none"}}/>
+        <button onClick={()=>voice?.start(send)} style={{width:37,height:37,background:voice?.listening?"rgba(255,51,102,0.12)":"rgba(0,212,255,0.08)",border:`1px solid ${voice?.listening?"#ff3366":"rgba(0,212,255,0.2)"}`,borderRadius:4,cursor:"pointer",fontSize:16,flexShrink:0}}>🎤</button>
+        <Btn ch="SEND" onClick={()=>send()} disabled={!inp.trim()||loading}/>
+      </div>
+    </div>
+  );
+}
+
+/* ─── AGENTS ─────────────────────────────────────────── */
+function AgentsPage({apiKeys}){
+  const[sel,setSel]=useState(null);
+  const[task,setTask]=useState("");
+  const[out,setOut]=useState("");
+  const[loading,setLoading]=useState(false);
+  const[cat,setCat]=useState("All");
+  const[step,setStep]=useState(0);
+  const cats=useMemo(()=>["All",...Array.from(new Set(AGENTS.map(a=>a.c)))],[]);
+  const filtered=useMemo(()=>AGENTS.filter(a=>cat==="All"||a.c===cat),[cat]);
+  const deploy=async()=>{
+    if(!sel||!task.trim())return;
+    setLoading(true);setOut("");setStep(0);
+    for(let i=0;i<4;i++){setStep(i);await new Promise(r=>setTimeout(r,620));}
+    const r=await callAI([{role:"user",content:task}],getSys(sel.id)||`You are the ${sel.n}. ${sel.d}. Execute with complete detail, structure output clearly with sections and actionable results.`,apiKeys.claude);
+    setOut(r);setLoading(false);
+  };
+  return(
+    <div style={{padding:18,overflowY:"auto",height:"100%"}}>
+      <div style={{marginBottom:12}}><h2 style={{fontFamily:"Orbitron",fontSize:15,color:"#fff",marginBottom:2}}>AI AGENTS NETWORK</h2><p style={{color:"#5a8cb0",fontSize:12}}>{AGENTS.length} agents · Expandable to 10,000+</p></div>
+      <HUD style={{padding:14,marginBottom:14,border:"1px solid rgba(168,85,247,0.35)",cursor:"pointer"}} onClick={()=>{setSel(AGENTS[0]);setOut("");}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:32}}>🌌</span>
+          <div style={{flex:1}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+              <span style={{fontFamily:"Orbitron",fontSize:13,color:"#a855f7"}}>Emergent AI Agent</span>
+              <Tag col="#a855f7">FEATURED</Tag>
+            </div>
+            <p style={{fontSize:11,color:"#8ab0d0"}}>{AGENTS[0].d}</p>
+          </div>
+          <span style={{fontFamily:"Orbitron",fontSize:10,color:"#a855f7"}}>{AGENTS[0].r.toLocaleString()}</span>
+        </div>
+      </HUD>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:10}}>
+        {cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:"3px 8px",fontSize:7,fontFamily:"Orbitron",letterSpacing:1,cursor:"pointer",borderRadius:3,border:`1px solid ${cat===c?"#ff6b35":"rgba(255,107,53,0.14)"}`,background:cat===c?"rgba(255,107,53,0.1)":"transparent",color:cat===c?"#ff6b35":"#5a8cb0"}}>{c}</button>)}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(175px,1fr))",gap:8,marginBottom:12}}>
+        {filtered.slice(1).map(a=>(
+          <HUD key={a.id} onClick={()=>{setSel(a);setOut("");}} style={{padding:11,cursor:"pointer",border:`1px solid ${sel?.id===a.id?"#ff6b35":"rgba(0,212,255,0.09)"}`,background:sel?.id===a.id?"rgba(255,107,53,0.04)":undefined,transition:"all 0.14s"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:20}}>{a.i}</span>
+              <span style={{fontFamily:"Orbitron",fontSize:7,color:a.s==="ACTIVE"?"#00ff88":"#00d4ff",letterSpacing:1}}>● {a.s}</span>
+            </div>
+            <div style={{fontSize:10,color:"#c8e8ff",fontWeight:600,marginBottom:1}}>{a.n}</div>
+            <div style={{fontSize:9,color:"#5a8cb0"}}>{a.r.toLocaleString()} runs</div>
+          </HUD>
+        ))}
+      </div>
+      {sel&&(
+        <HUD style={{padding:18,border:`1px solid ${sel.id==="emergent"?"rgba(168,85,247,0.3)":"rgba(255,107,53,0.18)"}`}} className="fade-up">
+          <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:12}}>
+            <span style={{fontSize:26}}>{sel.i}</span>
+            <div><div style={{fontFamily:"Orbitron",fontSize:12,color:sel.id==="emergent"?"#a855f7":"#ff6b35",marginBottom:2}}>{sel.n}</div><div style={{fontSize:11,color:"#5a8cb0"}}>{sel.d}</div></div>
+          </div>
+          <Inp value={task} onChange={e=>setTask(e.target.value)} placeholder={`Deploy ${sel.n} — describe task...`} multi rows={3} style={{marginBottom:10}}/>
+          <Btn ch={loading?"⚡ EXECUTING...":"▶ DEPLOY"} onClick={deploy} disabled={loading||!task.trim()} col={sel.id==="emergent"?"#a855f7":"#ff6b35"}/>
+          {loading&&<div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}><Spin col={sel.id==="emergent"?"#a855f7":"#ff6b35"}/><span style={{fontFamily:"Orbitron",fontSize:9,color:sel.id==="emergent"?"#a855f7":"#ff6b35",letterSpacing:2}}>{["INITIALIZING","ANALYZING","PROCESSING","GENERATING"][step]}...</span></div>}
+          {out&&!loading&&(
+            <div style={{marginTop:12,padding:14,background:"rgba(0,8,22,0.6)",border:`1px solid ${sel.id==="emergent"?"rgba(168,85,247,0.22)":"rgba(255,107,53,0.16)"}`,borderRadius:5}} className="fade-up">
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><Tag col={sel.id==="emergent"?"#a855f7":"#ff6b35"}>✓ OUTPUT</Tag><button onClick={()=>navigator.clipboard.writeText(out)} style={{background:"none",border:"1px solid rgba(0,212,255,0.16)",color:"#00d4ff",fontFamily:"Orbitron",fontSize:7,padding:"2px 8px",cursor:"pointer",borderRadius:3,letterSpacing:1}}>COPY</button></div>
+              <div style={{whiteSpace:"pre-wrap",lineHeight:1.78,color:"#c8e8ff",fontSize:13}}>{out}</div>
+            </div>
+          )}
+        </HUD>
+      )}
+    </div>
+  );
+}
+
+/* ─── AUTOMATION ─────────────────────────────────────── */
+function AutomationPage({apiKeys}){
+  const[sel,setSel]=useState(null);
+  const[inp,setInp]=useState("");
+  const[out,setOut]=useState("");
+  const[running,setRunning]=useState(false);
+  const[step,setStep]=useState(-1);
+  const run=async wf=>{
+    if(!inp.trim())return;
+    setRunning(true);setOut("");
+    for(let i=0;i<wf.nodes.length;i++){setStep(i);await new Promise(r=>setTimeout(r,700));}
+    const r=await callAI([{role:"user",content:`Execute "${wf.n}" automation.\nSteps: ${wf.nodes.join(" → ")}\nContext: ${inp}\n\nFor each step: what to do, what to create, what tools to use, expected output. Be comprehensive.`}],"You are an automation expert. Execute workflows step by step with detailed, actionable results.",apiKeys.claude);
+    setOut(r);setRunning(false);setStep(-1);
+  };
+  return(
+    <div style={{padding:18,overflowY:"auto",height:"100%"}}>
+      <div style={{marginBottom:14}}><h2 style={{fontFamily:"Orbitron",fontSize:15,color:"#fff",marginBottom:2}}>AUTOMATION BUILDER</h2><p style={{color:"#5a8cb0",fontSize:12}}>AI-powered workflows — trigger · action · result</p></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))",gap:10,marginBottom:14}}>
+        {WORKFLOWS.map(wf=>(
+          <HUD key={wf.id} onClick={()=>{setSel(wf);setOut("");}} style={{padding:13,cursor:"pointer",border:`1px solid ${sel?.id===wf.id?wf.col:"rgba(0,212,255,0.1)"}`,background:sel?.id===wf.id?`${wf.col}07`:undefined,transition:"all 0.2s"}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:9}}><span style={{fontSize:17}}>{wf.i}</span><span style={{fontFamily:"Orbitron",fontSize:10,color:sel?.id===wf.id?wf.col:"#c8e8ff"}}>{wf.n}</span></div>
+            <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:3}}>
+              {wf.nodes.map((nd,i)=>(
+                <React.Fragment key={i}>
+                  <span style={{padding:"2px 5px",background:`${wf.col}0e`,border:`1px solid ${wf.col}22`,borderRadius:3,fontSize:8,color:wf.col,whiteSpace:"nowrap"}}>{nd}</span>
+                  {i<wf.nodes.length-1&&<span style={{color:"#2a4060",fontSize:9}}>›</span>}
+                </React.Fragment>
+              ))}
+            </div>
+          </HUD>
+        ))}
+      </div>
+      {sel&&(
+        <HUD style={{padding:18}} className="fade-up">
+          <div style={{fontFamily:"Orbitron",fontSize:9,color:sel.col,letterSpacing:2,marginBottom:12}}>⚙ {sel.n.toUpperCase()}</div>
+          <div style={{display:"flex",alignItems:"center",gap:2,marginBottom:14,overflowX:"auto",paddingBottom:4}}>
+            {sel.nodes.map((nd,i)=>(
+              <React.Fragment key={i}>
+                <div style={{padding:"4px 8px",borderRadius:4,fontSize:10,flexShrink:0,background:running&&step>=i?`${sel.col}14`:"rgba(0,12,28,0.6)",border:`1px solid ${running&&step>=i?sel.col:"rgba(0,212,255,0.07)"}`,color:running&&step>=i?sel.col:"#5a8cb0",transition:"all 0.3s",boxShadow:running&&step===i?`0 0 12px ${sel.col}40`:"none"}}>{nd}</div>
+                {i<sel.nodes.length-1&&<div style={{width:14,height:1,background:running&&step>i?sel.col:"rgba(0,212,255,0.1)",flexShrink:0,transition:"all 0.3s"}}/>}
+              </React.Fragment>
+            ))}
+          </div>
+          <Inp value={inp} onChange={e=>setInp(e.target.value)} placeholder="Describe context for this automation..." multi rows={3} style={{marginBottom:10}}/>
+          <Btn ch={running?"⚙ EXECUTING...":"▶ RUN WORKFLOW"} onClick={()=>run(sel)} disabled={running||!inp.trim()} col={sel.col}/>
+          {out&&!running&&(
+            <div style={{marginTop:12,padding:14,background:"rgba(0,8,22,0.6)",border:`1px solid ${sel.col}1e`,borderRadius:5}} className="fade-up">
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><Tag col={sel.col}>✓ WORKFLOW COMPLETE</Tag><button onClick={()=>navigator.clipboard.writeText(out)} style={{background:"none",border:"1px solid rgba(0,212,255,0.16)",color:"#00d4ff",fontFamily:"Orbitron",fontSize:7,padding:"2px 8px",cursor:"pointer",borderRadius:3,letterSpacing:1}}>COPY</button></div>
+              <div style={{whiteSpace:"pre-wrap",lineHeight:1.78,color:"#c8e8ff",fontSize:13}}>{out}</div>
+            </div>
+          )}
+        </HUD>
+      )}
+    </div>
+  );
+}
+
+/* ─── KNOWLEDGE BRAIN ────────────────────────────────── */
+function KnowledgePage({apiKeys}){
+  const[topic,setTopic]=useState("");
+  const[depth,setDepth]=useState("comprehensive");
+  const[out,setOut]=useState("");
+  const[loading,setLoading]=useState(false);
+  const[hist,setHist]=useState([]);
+  const run=async()=>{
+    if(!topic.trim())return;
+    setLoading(true);setOut("");
+    const r=await callAI([{role:"user",content:`Depth: ${depth}\nTopic: ${topic}\n\nAnalyze completely: core concepts, expert insights, practical applications, common mistakes, cutting-edge developments, actionable takeaways.`}],"You are the AI Yog Lab Knowledge Brain — omniscient AI. Provide extraordinarily detailed, accurate, surprising analysis. Use clear structure. Reveal non-obvious connections and deep expertise.",apiKeys.claude);
+    setOut(r);setHist(h=>[{topic,out:r,ts:new Date().toLocaleTimeString()},...h.slice(0,4)]);setLoading(false);
+  };
+  const examples=["Quantum computing basics","YouTube channel growth 0 to 1M","Building SaaS in India 2025","Machine learning fundamentals","How ChatGPT works internally","IIT JEE Physics quick tips","Dropshipping 2025 strategy","Best React patterns"];
+  return(
+    <div style={{padding:18,overflowY:"auto",height:"100%"}}>
+      <div style={{marginBottom:14}}><h2 style={{fontFamily:"Orbitron",fontSize:15,color:"#fff",marginBottom:2}}>🧠 KNOWLEDGE BRAIN</h2><p style={{color:"#5a8cb0",fontSize:12}}>Deep AI knowledge on any topic — instant expert analysis</p></div>
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:12,marginBottom:14}}>
+        <HUD style={{padding:14}}>
+          <Inp value={topic} onChange={e=>setTopic(e.target.value)} onKeyDown={e=>e.key==="Enter"&&run()} placeholder="Any topic, concept, technology, strategy..." style={{marginBottom:8}}/>
+          <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
+            <span style={{fontSize:11,color:"#5a8cb0"}}>Depth:</span>
+            {["quick","standard","comprehensive","expert"].map(d=><button key={d} onClick={()=>setDepth(d)} style={{padding:"3px 8px",fontSize:7,fontFamily:"Orbitron",letterSpacing:1,cursor:"pointer",borderRadius:3,border:`1px solid ${depth===d?"#a855f7":"rgba(168,85,247,0.14)"}`,background:depth===d?"rgba(168,85,247,0.1)":"transparent",color:depth===d?"#a855f7":"#5a8cb0"}}>{d}</button>)}
+          </div>
+          <Btn ch={loading?"🧠 THINKING...":"🧠 ANALYZE"} onClick={run} disabled={loading||!topic.trim()} col="#a855f7"/>
+        </HUD>
+        <HUD style={{padding:12}}>
+          <div style={{fontFamily:"Orbitron",fontSize:8,color:"#5a8cb0",letterSpacing:2,marginBottom:8}}>EXAMPLES</div>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            {examples.slice(0,6).map(e=><div key={e} onClick={()=>setTopic(e)} style={{padding:"4px 8px",fontSize:10,color:"#8ab0d0",cursor:"pointer",borderRadius:3,border:"1px solid rgba(168,85,247,0.08)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e}</div>)}
+          </div>
+        </HUD>
+      </div>
+      {loading&&<HUD style={{padding:12,marginBottom:12}}><div style={{display:"flex",alignItems:"center",gap:8}}><Spin col="#a855f7"/><span style={{fontFamily:"Orbitron",fontSize:9,color:"#a855f7",letterSpacing:2}}>KNOWLEDGE BRAIN PROCESSING...</span></div></HUD>}
+      {out&&!loading&&(
+        <HUD style={{padding:16,border:"1px solid rgba(168,85,247,0.18)"}} className="fade-up">
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}><Tag col="#a855f7">🧠 RESULT</Tag><span style={{fontSize:11,color:"#5a8cb0"}}>{topic}</span></div>
+            <button onClick={()=>navigator.clipboard.writeText(out)} style={{background:"none",border:"1px solid rgba(168,85,247,0.2)",color:"#a855f7",fontFamily:"Orbitron",fontSize:7,padding:"2px 8px",cursor:"pointer",borderRadius:3,letterSpacing:1}}>COPY</button>
+          </div>
+          <div style={{whiteSpace:"pre-wrap",lineHeight:1.8,color:"#c8e8ff",fontSize:13}}>{out}</div>
+        </HUD>
+      )}
+    </div>
+  );
+}
+
+/* ─── MARKETPLACE ────────────────────────────────────── */
+const MARKET=[
+  {id:"m1",n:"YouTube Viral Script Pack",a:"@creatorPro",p:299,c:"Content",d:1243,r:4.9,e:"▶️"},
+  {id:"m2",n:"JARVIS Image Mega Prompt",a:"@aiDesigner",p:199,c:"Image",d:3421,r:4.8,e:"🎨"},
+  {id:"m3",n:"SaaS Landing Page Kit",a:"@devMaster",p:499,c:"Dev",d:892,r:4.7,e:"🚀"},
+  {id:"m4",n:"Instagram Growth Bundle",a:"@socialGuru",p:399,c:"Creator",d:5678,r:4.9,e:"📸"},
+  {id:"m5",n:"SEO Blog Post System",a:"@seoKing",p:149,c:"Marketing",d:2341,r:4.6,e:"🔍"},
+  {id:"m6",n:"Email Automation Sequence",a:"@emailPro",p:249,c:"Automation",d:1567,r:4.8,e:"📧"},
+  {id:"m7",n:"IIT JEE Complete Prep Kit",a:"@iitCoach",p:599,c:"Education",d:4521,r:5.0,e:"🏛️"},
+  {id:"m8",n:"Suno V5 Music Masterpack",a:"@musicAI",p:199,c:"Audio",d:987,r:4.7,e:"🎵"},
+  {id:"m9",n:"Hindi Content Creator Kit",a:"@desiCreator",p:299,c:"Bharat",d:6789,r:4.9,e:"🇮🇳"},
+  {id:"m10",n:"HTML5 Game Dev Bundle",a:"@gameDev",p:699,c:"Dev",d:432,r:4.8,e:"🎮"},
+  {id:"m11",n:"Startup Business Plan",a:"@startupGuru",p:399,c:"Business",d:2134,r:4.7,e:"📈"},
+  {id:"m12",n:"TikTok Viral Formula",a:"@tikTokPro",p:249,c:"Creator",d:8901,r:4.9,e:"🎵"},
+  {id:"m13",n:"Emergent AI Prompt Collection",a:"@emergentAI",p:449,c:"Meta",d:1234,r:5.0,e:"🌌"},
+  {id:"m14",n:"React Component Library",a:"@reactDev",p:349,c:"Dev",d:567,r:4.8,e:"⚛️"},
+];
+function MarketplacePage(){
+  const[cat,setCat]=useState("All");
+  const[search,setSearch]=useState("");
+  const[owned,setOwned]=useState(()=>new Set(LS.get("ayl_owned",[])));
+  const[publishOpen,setPublishOpen]=useState(false);
+  const[form,setForm]=useState({n:"",p:"",c:"Content",d:""});
+  const filtered=useMemo(()=>MARKET.filter(m=>(cat==="All"||m.c===cat)&&(!search||m.n.toLowerCase().includes(search.toLowerCase()))),[cat,search]);
+  const buy=id=>{const n=new Set([...owned,id]);setOwned(n);LS.set("ayl_owned",[...n]);};
+  const cats=["All",...Array.from(new Set(MARKET.map(m=>m.c)))];
+  return(
+    <div style={{padding:18,overflowY:"auto",height:"100%"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div><h2 style={{fontFamily:"Orbitron",fontSize:15,color:"#fff",marginBottom:2}}>AI MARKETPLACE</h2><p style={{color:"#5a8cb0",fontSize:12}}>Buy & sell AI prompts, templates, workflows, agents</p></div>
+        <Btn ch="+ PUBLISH" onClick={()=>setPublishOpen(!publishOpen)} col="#f59e0b"/>
+      </div>
+      {publishOpen&&(
+        <HUD style={{padding:14,marginBottom:14,border:"1px solid rgba(245,158,11,0.22)"}} className="fade-up">
+          <div style={{fontFamily:"Orbitron",fontSize:8,color:"#f59e0b",letterSpacing:2,marginBottom:10}}>PUBLISH TO MARKETPLACE</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+            <Inp value={form.n} onChange={e=>setForm({...form,n:e.target.value})} placeholder="Item name"/>
+            <Inp value={form.p} onChange={e=>setForm({...form,p:e.target.value})} placeholder="Price (₹)"/>
+            <select value={form.c} onChange={e=>setForm({...form,c:e.target.value})} style={{background:"rgba(0,8,20,0.85)",border:"1px solid rgba(0,212,255,0.13)",color:"#c8e8ff",fontFamily:"Rajdhani",fontSize:13,padding:"9px 10px",borderRadius:4,outline:"none"}}>
+              {["Content","Image","Video","Audio","Dev","Marketing","Business","Education","Automation","Creator","Bharat","Meta"].map(c=><option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <Inp value={form.d} onChange={e=>setForm({...form,d:e.target.value})} placeholder="Describe your item..." multi rows={2} style={{marginBottom:8}}/>
+          <p style={{fontSize:10,color:"#3a6080",marginBottom:8}}>Platform takes 20% commission. Earnings via UPI weekly.</p>
+          <Btn ch="SUBMIT FOR REVIEW" onClick={()=>{alert("✓ Submitted! Live within 24 hours.");setPublishOpen(false);}} col="#f59e0b"/>
+        </HUD>
+      )}
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+        <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search..." style={{width:170,fontSize:12}}/>
+        <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+          {cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:"3px 8px",fontSize:7,fontFamily:"Orbitron",letterSpacing:1,cursor:"pointer",borderRadius:3,border:`1px solid ${cat===c?"#f59e0b":"rgba(245,158,11,0.14)"}`,background:cat===c?"rgba(245,158,11,0.1)":"transparent",color:cat===c?"#f59e0b":"#5a8cb0"}}>{c}</button>)}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12}}>
+        {filtered.map(m=>(
+          <HUD key={m.id} style={{padding:15}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}><span style={{fontSize:26}}>{m.e}</span><Tag col="#f59e0b">{m.c}</Tag></div>
+            <div style={{fontSize:12,color:"#fff",fontWeight:600,marginBottom:2,lineHeight:1.3}}>{m.n}</div>
+            <div style={{fontSize:10,color:"#5a8cb0",marginBottom:7}}>by {m.a}</div>
+            <div style={{display:"flex",gap:10,fontSize:10,color:"#5a8cb0",marginBottom:11}}><span>⬇ {m.d.toLocaleString()}</span><span>⭐ {m.r}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontFamily:"Orbitron",fontSize:13,color:"#00ff88"}}>₹{m.p}</span>
+              <button onClick={()=>buy(m.id)} style={{background:owned.has(m.id)?"rgba(0,255,136,0.1)":"rgba(0,255,136,0.04)",border:`1px solid ${owned.has(m.id)?"rgba(0,255,136,0.5)":"rgba(0,255,136,0.2)"}`,color:"#00ff88",fontFamily:"Orbitron",fontSize:7,padding:"5px 10px",cursor:"pointer",borderRadius:3,letterSpacing:1}}>
+                {owned.has(m.id)?"✓ OWNED":"BUY NOW"}
+              </button>
+            </div>
+          </HUD>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── PRICING ────────────────────────────────────────── */
+const PLANS=[
+  {id:"free",n:"Free",p:0,col:"#6a9ec0",f:["10 tools/day","Basic JARVIS chat","Community support","5 marketplace views","3 builder uses/month"]},
+  {id:"pro",n:"Pro",p:499,col:"#00d4ff",hot:true,f:["Unlimited all tools","Advanced JARVIS","Voice commands","Full marketplace","50 agent runs/day","All automations","Knowledge Brain","Priority support","Commercial use"]},
+  {id:"business",n:"Business",p:1999,col:"#00ff88",f:["Everything in Pro","Unlimited agents","Full API access","White-label option","Analytics dashboard","5 team seats","Dedicated support","Revenue sharing"]},
+];
+function PricingPage({plan,coupon,onUpgrade}){
+  return(
+    <div style={{padding:28,overflowY:"auto",height:"100%"}}>
+      <div style={{textAlign:"center",marginBottom:32}}>
+        <h2 style={{fontFamily:"Orbitron",fontSize:20,color:"#fff",marginBottom:7}}>CHOOSE YOUR PLAN</h2>
+        {coupon&&<div style={{display:"inline-block",padding:"6px 18px",background:"rgba(168,85,247,0.12)",border:"1px solid rgba(168,85,247,0.4)",borderRadius:20,fontFamily:"Orbitron",fontSize:10,color:"#a855f7",letterSpacing:2,marginBottom:10}}>✨ UNLIMITED PLAN ACTIVE</div>}
+        <p style={{color:"#5a8cb0",fontSize:14}}>Power up AI Yog Lab World Super App</p>
+      </div>
+      {coupon?(
+        <HUD style={{padding:32,maxWidth:400,margin:"0 auto",textAlign:"center",border:"1px solid rgba(168,85,247,0.4)"}}>
+          <div style={{fontSize:48,marginBottom:12}}>✨</div>
+          <div style={{fontFamily:"Orbitron",fontSize:18,color:"#a855f7",marginBottom:8}}>UNLIMITED ACTIVATED</div>
+          <p style={{color:"#8ab0d0",fontSize:13,lineHeight:1.8}}>You have unlimited access to all tools, agents, builders, automation workflows, knowledge brain, and marketplace. Everything is free for you!</p>
+        </HUD>
+      ):(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,maxWidth:800,margin:"0 auto 28px"}}>
+          {PLANS.map(p=>(
+            <HUD key={p.id} style={{padding:22,border:`1px solid ${p.hot?"#00d4ff":"rgba(0,212,255,0.1)"}`,background:p.hot?"rgba(0,212,255,0.025)":undefined,position:"relative"}}>
+              {p.hot&&<div style={{position:"absolute",top:-1,left:"50%",transform:"translateX(-50%)",background:"#00d4ff",color:"#040d1a",fontFamily:"Orbitron",fontSize:7,padding:"2px 14px",letterSpacing:2,whiteSpace:"nowrap",borderRadius:"0 0 3px 3px"}}>MOST POPULAR</div>}
+              <div style={{fontFamily:"Orbitron",fontSize:13,color:p.col,marginBottom:5,marginTop:p.hot?10:0}}>{p.n}</div>
+              <div style={{marginBottom:14}}><span style={{fontFamily:"Orbitron",fontSize:26,fontWeight:700,color:"#fff"}}>₹{p.p}</span>{p.p>0&&<span style={{color:"#5a8cb0",fontSize:11}}>/mo</span>}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
+                {p.f.map(f=><div key={f} style={{display:"flex",alignItems:"flex-start",gap:5,fontSize:11,color:"#b8d8e8"}}><span style={{color:p.col,fontSize:10,marginTop:1,flexShrink:0}}>✓</span>{f}</div>)}
+              </div>
+              <button onClick={()=>onUpgrade(p.id)} style={{width:"100%",padding:"8px",background:plan===p.id?"rgba(0,212,255,0.04)":"transparent",border:`1px solid ${p.col}`,color:plan===p.id?"#3a6080":p.col,fontFamily:"Orbitron",fontSize:9,cursor:plan===p.id?"default":"pointer",letterSpacing:2,borderRadius:3}}>
+                {plan===p.id?"✓ CURRENT":"UPGRADE →"}
+              </button>
+            </HUD>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── SETTINGS (with hidden coupon) ─────────────────── */
+function SettingsPage({apiKeys,onUpdateKeys,user,plan,onActivateCoupon,coupon}){
+  const[showing,setShowing]=useState(false);
+  const[couponInput,setCouponInput]=useState("");
+  const[couponStatus,setCouponStatus]=useState("");
+  const[showCouponField,setShowCouponField]=useState(false);
+
+  const applyCoupon=()=>{
+    if(couponInput.trim()===SECRET_COUPON){
+      onActivateCoupon();
+      setCouponStatus("✓ Code applied! Unlimited access activated!");
+      setCouponInput("");
+    }else{
+      setCouponStatus("❌ Invalid code.");
+    }
+    setTimeout(()=>setCouponStatus(""),3000);
+  };
+
+  return(
+    <div style={{padding:22,overflowY:"auto",height:"100%"}}>
+      <div style={{marginBottom:16}}><h2 style={{fontFamily:"Orbitron",fontSize:15,color:"#fff",marginBottom:2}}>SETTINGS</h2><p style={{color:"#5a8cb0",fontSize:12}}>Manage keys, account, and preferences</p></div>
+
+      {/* API Keys */}
+      <HUD style={{padding:16,maxWidth:540,marginBottom:12}}>
+        <div style={{fontFamily:"Orbitron",fontSize:8,color:"#00d4ff",letterSpacing:2,marginBottom:12}}>API KEY</div>
+        <div style={{marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <label style={{fontFamily:"Orbitron",fontSize:8,color:"#00d4ff",letterSpacing:2}}>GROQ API KEY (FREE)</label>
+            <span style={{fontFamily:"Orbitron",fontSize:7,color:apiKeys.claude?"#00ff88":"#ff3366"}}>● {apiKeys.claude?"ACTIVE":"NOT SET"}</span>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <div style={{flex:1,padding:"8px 12px",background:"rgba(0,6,18,0.8)",border:"1px solid rgba(0,212,255,0.12)",borderRadius:4,fontSize:12,color:"#3a6080",fontFamily:"Rajdhani"}}>
+              {showing&&apiKeys.claude?apiKeys.claude:(apiKeys.claude?"gsk_..."+apiKeys.claude.slice(-8):"Not configured")}
+            </div>
+            <button onClick={()=>setShowing(!showing)} style={{background:"rgba(0,212,255,0.06)",border:"1px solid rgba(0,212,255,0.18)",color:"#00d4ff",fontFamily:"Orbitron",fontSize:7,padding:"0 10px",cursor:"pointer",borderRadius:3,letterSpacing:1,flexShrink:0}}>{showing?"HIDE":"SHOW"}</button>
+          </div>
+        </div>
+        <Btn ch="🔑 UPDATE API KEY" onClick={onUpdateKeys} col="#00d4ff" sm/>
+      </HUD>
+
+      {/* Account */}
+      <HUD style={{padding:16,maxWidth:540,marginBottom:12}}>
+        <div style={{fontFamily:"Orbitron",fontSize:8,color:"#00d4ff",letterSpacing:2,marginBottom:12}}>ACCOUNT</div>
+        {[
+          ["Name",user?.name||"—","#c8e8ff"],
+          ["Email",user?.email||"—","#c8e8ff"],
+          ["Provider",user?.provider||"—","#00d4ff"],
+          ["Plan",coupon?"UNLIMITED":plan.toUpperCase(),coupon?"#a855f7":"#00ff88"],
+        ].map(([l,v,c])=>(
+          <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid rgba(0,212,255,0.04)"}}>
+            <span style={{fontSize:12,color:"#7a9ec0"}}>{l}</span>
+            <span style={{fontFamily:"Orbitron",fontSize:10,color:c}}>{v}</span>
+          </div>
+        ))}
+      </HUD>
+
+      {/* Hidden Coupon — only visible via "Have an activation code?" link */}
+      <HUD style={{padding:16,maxWidth:540,marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontFamily:"Orbitron",fontSize:8,color:"#5a8cb0",letterSpacing:2}}>ACTIVATION</div>
+          {coupon?<Tag col="#a855f7">✨ UNLIMITED ACTIVE</Tag>:(
+            <button onClick={()=>setShowCouponField(!showCouponField)} style={{background:"none",border:"none",color:"#2a4a6a",fontFamily:"Rajdhani",fontSize:11,cursor:"pointer",textDecoration:"underline"}}>Have an activation code?</button>
+          )}
+        </div>
+        {showCouponField&&!coupon&&(
+          <div style={{marginTop:10}}>
+            <div style={{display:"flex",gap:8}}>
+              <input type="password" value={couponInput} onChange={e=>setCouponInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&applyCoupon()} placeholder="Enter code..." style={{flex:1,background:"rgba(0,6,18,0.8)",border:"1px solid rgba(0,212,255,0.14)",color:"#c8e8ff",fontFamily:"Rajdhani",fontSize:13,padding:"8px 10px",borderRadius:4,outline:"none"}}/>
+              <Btn ch="APPLY" onClick={applyCoupon} sm/>
+            </div>
+            {couponStatus&&<div style={{marginTop:7,fontSize:12,color:couponStatus.includes("✓")?"#00ff88":"#ff6688"}}>{couponStatus}</div>}
+          </div>
+        )}
+      </HUD>
+
+      {/* About */}
+      <HUD style={{padding:16,maxWidth:540}}>
+        <div style={{fontFamily:"Orbitron",fontSize:8,color:"#00d4ff",letterSpacing:2,marginBottom:10}}>ABOUT</div>
+        <div style={{fontSize:12,color:"#5a8cb0",lineHeight:1.9}}>
+          <div><span style={{color:"#00d4ff"}}>App:</span> AI Yog Lab World Super App</div>
+          <div><span style={{color:"#00d4ff"}}>Version:</span> v6 ULTRA FINAL</div>
+          <div><span style={{color:"#00d4ff"}}>AI Engine:</span> Claude Sonnet (Anthropic)</div>
+          <div><span style={{color:"#00d4ff"}}>Tools:</span> {TOOLS.length}+ AI tools</div>
+          <div><span style={{color:"#00d4ff"}}>Agents:</span> {AGENTS.length} AI agents</div>
+          <div><span style={{color:"#00d4ff"}}>Builders:</span> {BUILDERS.length} builder engines</div>
+          <div style={{marginTop:8,padding:"8px 12px",background:"rgba(0,212,255,0.04)",border:"1px solid rgba(0,212,255,0.1)",borderRadius:4,fontSize:11,color:"#00d4ff"}}>Made with ❤️ by Shaurya — AI Yog Lab India 🇮🇳</div>
+        </div>
+      </HUD>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
