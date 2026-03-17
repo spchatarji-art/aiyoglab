@@ -33,7 +33,7 @@ app.post('/api/chat', async (req, res) => {
         'Authorization': `Bearer ${key}`
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama3-70b-8192',
         messages: groqMessages,
         max_tokens: 2000,
         temperature: 0.7
@@ -60,7 +60,7 @@ app.post('/api/test-key', async (req, res) => {
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-      body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: 'Hi' }], max_tokens: 5 })
+      body: JSON.stringify({ model: 'llama3-70b-8192', messages: [{ role: 'user', content: 'Hi' }], max_tokens: 5 })
     });
     const d = await r.json();
     if (d.error) return res.json({ ok: false, error: d.error.message });
